@@ -2,7 +2,7 @@
 
 The desktop frontend for an e-server you own or have permission to access. Windows
 10+ (x64), Ubuntu, Arch Linux and Linux AppImage (x86_64). macOS and mobile are not
-offered. The application asks for your server's HTTPS origin; private network/VPN
+offered. Sign in to your global Easter Company account first, then choose your server's HTTPS origin; private network/VPN
 access, its PIN and your Easter Company account are still required. No server
 address, PIN, Company token or backend source is bundled into releases.
 
@@ -43,3 +43,6 @@ vendored into e-server and easter.company. Keep the four installer filenames and
 both update-manifest names synchronized with the release workflow. Publish a
 normal `client-v<package version>` tag, never a prerelease, so `/releases/latest`
 and the download buttons resolve to the same version.
+
+Company-first sign-in, account isolation, tray controls and the HTTPS address correction
+are described in [docs/COMPANY_LOGIN.md](docs/COMPANY_LOGIN.md).

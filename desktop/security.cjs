@@ -6,6 +6,9 @@ function serverRequest(value,origin){
 function serverOrigin(value,{development=false}={}){
  let url;try{url=new URL(String(value).trim());}catch{throw Error('Enter the full HTTPS address of your e-server.');}
  const loopback=['127.0.0.1','localhost','[::1]'].includes(url.hostname);
+ // Older download splashes advertised the reverse proxy's internal HTTP scheme.
+ // This one known host has verified TLS; never downgrade or allow other HTTP hosts.
+ if(url.protocol==='http:'&&url.hostname==='easter-server.char-istrian.ts.net'&&(!url.port||url.port==='80'))url.protocol='https:';
  if(url.protocol!=='https:'&&!(development&&loopback&&url.protocol==='http:'))throw Error('Your e-server address must use HTTPS.');
  if(url.username||url.password||url.search||url.hash||!['','/'].includes(url.pathname))throw Error('Enter a server origin without a path, password or query.');
  return url.origin;

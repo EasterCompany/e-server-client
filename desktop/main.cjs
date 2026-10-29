@@ -4,6 +4,8 @@ const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('n
 const {pathToFileURL}=require('node:url');
 const {HEADER,CLIENT,serverRequest,serverOrigin,externalURL,connectionLink,trusted,localFrame,updateLevel,relaunchOptions}=require('./security.cjs');
 const updater=require('./updater.cjs');
+const {CompanyAccount}=require('./company.cjs'),{CompanyMicrosoft}=require('./company-microsoft.cjs');
+const vault=require('./vendor/launcher/vault.cjs'),{providerSignIn}=require('./vendor/launcher/providers.cjs');
 const VERSION=require('../package.json').version,RUNTIME=process.versions.electron;
 const HOME=path.join(app.getPath('appData'),'Easter Company','e-server-client'),UPDATES=path.join(HOME,'updates');
 app.setPath('userData',HOME);app.setAppUserModelId('ltd.easter.eserver');
@@ -12,32 +14,55 @@ const icon=path.join(__dirname,'icon.png'),shellFile=path.join(__dirname,'shell.
 const installer='https://github.com/EasterCompany/e-server-client/releases/latest';
 let config={},win=null,setup=null,tray=null,quitting=false,ready=false,pollTimer=null,auth=null,externalAuth=false;
 let activity=Date.now(),downloads=0,requests=new Set(),failures=0,captureGranted=false,restartOnClosed=false,pendingServer=null,restartingHidden=false;
-let state={phase:'setup',version:VERSION,server:''};
+let state={phase:'auth',version:VERSION,server:'',accountBusy:true};
 let activeSession=null;
+let company=null,windowAccount=null,pendingLink=null;
 const inspect=(file,manifest)=>{const pkg=require(file+'/package.json');if(pkg.name!=='easter-eserver-client'||pkg.version!==manifest.version)throw Error('Invalid e-server client update.');};
 if(!app.requestSingleInstanceLock()){app.quit();}else{
  app.on('second-instance',(_,argv)=>{const link=argv.find(v=>v.startsWith('e-server:'));if(link)void receiveLink(link);else show();});
  app.on('open-url',(event,url)=>{event.preventDefault();void receiveLink(url);});
  app.whenReady().then(start).catch(error=>{dialog.showErrorBox('e-server could not start',error.message);app.quit();});
 }
-function show(){const target=win||setup;if(target){target.show();target.focus();}}
-function publish(next){state={...state,...next,version:VERSION,server:config.server||''};if(setup&&!setup.isDestroyed())setup.webContents.send('client:state',state);}
+function show(){if(!company?.authorized()){setupWindow();return;}const target=win||setup;if(target){target.show();target.focus();}}
+function publish(next){state={...state,...next,...company?.view(),version:VERSION,server:company?.authorized()?config.server||'':''};if(setup&&!setup.isDestroyed())setup.webContents.send('client:state',state);}
+function accountChanged(){if(!company?.authorized()){win?.hide();publish({phase:'auth',title:'Sign in to Easter Company.',error:''});setupWindow();}else publish({});}
+function changeServer(){if(!company?.authorized()){setupWindow();return;}publish({phase:'setup',title:'Connect to an e-server',error:''});setupWindow();}
+async function signOutCompany(){
+ const choice=await dialog.showMessageBox(win||setup||undefined,{type:'question',buttons:['Cancel','Sign out'],defaultId:0,cancelId:0,message:'Sign out of Easter Company?',detail:'Save your work first. The client will lock until you sign in again.'});
+ if(choice.response===1)await company.signOut();
+}
+async function initializeCompany(){
+ const {AccountClient,companySession,publicAccount}=await import('./vendor/launcher/account-client.mjs');
+ const testAPI=development?process.env.E_SERVER_ACCOUNTS_TEST_ORIGIN:null;
+ if(testAPI){const address=new URL(testAPI);if(address.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(address.hostname))throw Error('The test account service must be loopback HTTP.');}
+ const accounts=new AccountClient({client:'e-server/'+VERSION,...(testAPI?{baseUrl:testAPI}:{} )});
+ const microsoftAccount=new CompanyMicrosoft({accounts,openExternal:url=>shell.openExternal(externalURL(url)),log:{append(){}}});
+ const options={safeStorage};
+ company=new CompanyAccount({client:accounts,toSession:companySession,publicAccount,file:path.join(HOME,'company.enc'),
+  vault:{writeEncrypted:(file,value)=>vault.writeEncrypted(file,value,options),readEncrypted:file=>vault.readEncrypted(file,options),remove:vault.remove},
+  microsoft:signal=>microsoftAccount.signIn(()=>{},signal),provider:(provider,signal)=>providerSignIn(accounts,provider,{signal,openExternal:url=>shell.openExternal(externalURL(url))}),changed:accountChanged});
+ return accounts;
+}
+async function afterCompany(){if(!company.authorized())return;publish({phase:'setup',title:'Your e-server.',message:'Connect to your private network, then enter your server HTTPS address.',error:''});if(pendingLink){const target=pendingLink;pendingLink=null;await receiveLink(target,true);}else await connect();}
 async function save(){await fs.mkdir(HOME,{recursive:true,mode:0o700});const tmp=path.join(HOME,'settings-'+crypto.randomUUID()+'.tmp');await fs.writeFile(tmp,JSON.stringify(config),{mode:0o600});await fs.rename(tmp,path.join(HOME,'settings.json'));}
 function local(event){if(!localFrame(event)||event.senderFrame.url!==pathToFileURL(shellFile).href)throw Error('This action is only available in e-server setup.');}
-function remote(event){if(!config.server||!win||event.sender!==win.webContents||!trusted(event,config.server))throw Error('This request did not come from your e-server.');}
+function remote(event){company?.require();if(!config.server||!win||event.sender!==win.webContents||!trusted(event,config.server))throw Error('This request did not come from your e-server.');}
 const preferences=(ses)=>({session:ses,preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false,allowRunningInsecureContent:false});
 function setupWindow(){
  if(setup&&!setup.isDestroyed()){setup.show();return setup;}
- setup=new BrowserWindow({width:680,height:760,minWidth:360,minHeight:500,backgroundColor:'#0d1117',icon,webPreferences:preferences(session.fromPartition('setup'))});
+ setup=new BrowserWindow({width:680,height:860,minWidth:360,minHeight:500,autoHideMenuBar:true,backgroundColor:'#0d1117',icon,webPreferences:preferences(session.fromPartition('setup'))});
+ setup.setMenu(null);setup.setMenuBarVisibility(false);
  setup.loadFile(shellFile);setup.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  setup.webContents.on('will-navigate',(event,url)=>{if(url!==pathToFileURL(shellFile).href)event.preventDefault();});
  setup.on('closed',()=>{setup=null;if(!win&&!quitting)app.quit();});return setup;
 }
 function persistent(){return safeStorage.isEncryptionAvailable()&&(!safeStorage.getSelectedStorageBackend||safeStorage.getSelectedStorageBackend()!=='basic_text');}
 async function connect(){
+ if(!company?.authorized()){accountChanged();return;}
+ if(win){if(windowAccount===company.key()){if(setup)setup.close();win.show();return;}const previous=win;win=null;previous.destroy();}
  if(!config.server){publish({phase:'setup',title:'Your e-server.',error:''});setupWindow();return;}
  const remembered=persistent();
- const partition=(remembered?'persist:':'')+'server-'+crypto.createHash('sha256').update(config.server).digest('hex').slice(0,24);
+ const partition=(remembered?'persist:':'')+'server-'+crypto.createHash('sha256').update(config.server+'\0'+company.key()).digest('hex').slice(0,24);
  activeSession=session.fromPartition(partition);
  const oldVersion=config.serverVersions?.[config.server];
  if(oldVersion&&updateLevel(oldVersion,VERSION)!=='patch')await activeSession.clearCache();
@@ -78,14 +103,16 @@ async function connect(){
   item.setSaveDialogOptions({title:'Save from e-server',defaultPath:path.join(app.getPath('downloads'),path.basename(item.getFilename()))});
  });
  const bounds=config.bounds&&[config.bounds.width,config.bounds.height].every(n=>Number.isFinite(n)&&n>=360)?config.bounds:{width:1280,height:900};
- win=new BrowserWindow({...bounds,minWidth:360,minHeight:500,backgroundColor:'#0d1117',icon,title:'e-server',show:false,webPreferences:preferences(activeSession)});
+ win=new BrowserWindow({...bounds,minWidth:360,minHeight:500,autoHideMenuBar:true,backgroundColor:'#0d1117',icon,title:'e-server',show:false,webPreferences:preferences(activeSession)});
+ win.setMenu(null);win.setMenuBarVisibility(false);windowAccount=company.key();
  const current=win;
  current.webContents.setWindowOpenHandler(({url})=>{void openExternal(url);return {action:'deny'};});
  current.webContents.on('will-attach-webview',event=>event.preventDefault());
  current.webContents.on('will-navigate',(event,url)=>{try{if(new URL(url).origin===config.server)return;}catch{}event.preventDefault();void openExternal(url);});
  current.webContents.on('did-fail-load',(_,code,message,url,mainFrame)=>{if(mainFrame&&code!==-3){publish({phase:'offline',title:'Connection unavailable',message:'Connect to your private network or VPN, then try again.',error:message});setupWindow();current.hide();}});
  current.webContents.on('render-process-gone',()=>{publish({phase:'offline',title:'Your e-server view stopped',message:'Reconnect to restore the server view.',error:''});setupWindow();current.hide();});
- current.once('ready-to-show',()=>{if(setup)setup.close();if(!process.argv.includes('--hidden-to-tray'))current.show();});
+ current.once('ready-to-show',()=>{if(!company.authorized()){current.hide();return;}if(setup)setup.close();if(!process.argv.includes('--hidden-to-tray'))current.show();});
+ current.webContents.on('before-input-event',(event,input)=>{if(input.type==='keyDown'&&(input.control||input.meta)&&input.key===','){event.preventDefault();changeServer();}});
  current.on('close',event=>{if(!quitting&&tray){event.preventDefault();current.hide();}});
  current.on('closed',()=>{if(win===current)win=null;if(restartOnClosed){void (async()=>{if(pendingServer){config.server=pendingServer;await save();}restart();})().catch(error=>dialog.showErrorBox('Could not restart e-server',error.message));}});
  current.on('resize',()=>{if(!current.isMaximized()&&!current.isMinimized()){config.bounds=current.getBounds();void save();}});
@@ -123,7 +150,7 @@ async function microsoft(){
 async function cancelSignIn(){auth?.abort();externalAuth=false;await ask('/desktop/auth/cancel',{method:'POST',body:{}}).catch(()=>{});await ask('/profiles/providers/cancel',{method:'POST',body:{}}).catch(()=>{});if(win)win.loadURL(config.server+'/account');}
 function probe(){return new Promise((resolve,reject)=>{const request=https.get(installer,{timeout:15000},response=>{response.resume();const prefix='https://github.com/EasterCompany/e-server-client/releases/tag/client-v';if(response.statusCode!==302||!response.headers.location?.startsWith(prefix))return reject(Error('Update service did not return a release.'));const version=response.headers.location.slice(prefix.length);try{updater.version(version);resolve(version);}catch(error){reject(error);}});request.on('error',reject);request.on('timeout',()=>request.destroy(Error('Update check timed out.')));});}
 async function mayRestart(){
- if(!win||win.isFocused()||win.webContents.isCurrentlyAudible()||captureGranted||Date.now()-activity<60000||auth||externalAuth||downloads||requests.size)return false;
+ if(!win||setup?.isVisible()||win.isFocused()||win.webContents.isCurrentlyAudible()||captureGranted||Date.now()-activity<60000||auth||externalAuth||company?.busy||downloads||requests.size)return false;
  try{return await win.webContents.executeJavaScript("(()=>{const e=new Event('beforeunload',{cancelable:true});window.dispatchEvent(e);return !e.defaultPrevented;})()");}catch{return false;}
 }
 async function applyStaged(manual=false){
@@ -155,21 +182,18 @@ async function checkUpdate(startup=false,manual=false){
  return false;
 }
 function schedule(){clearTimeout(pollTimer);pollTimer=setTimeout(async()=>{await checkUpdate();await applyStaged(false);schedule();},Math.min(60,15*2**failures)*60000+Math.random()*90000);pollTimer.unref();}
-async function receiveLink(value){try{const origin=connectionLink(value);await app.whenReady();if(origin===config.server){show();return;}if(config.server){const choice=await dialog.showMessageBox(win||undefined,{buttons:['Cancel','Connect'],defaultId:0,cancelId:0,message:'Connect e-server to this server?',detail:origin});if(choice.response!==1)return;}if(win){pendingServer=origin;quitting=true;restartOnClosed=true;win.close();}else{config.server=origin;await save();if(ready)await connect();}}catch(error){dialog.showErrorBox('Invalid e-server connection',error.message);}}
+async function receiveLink(value,originOnly=false){try{const origin=originOnly?serverOrigin(value,{development}):connectionLink(value);await app.whenReady();if(!company?.authorized()){pendingLink=origin;setupWindow();return;}if(origin===config.server){await connect();return;}if(config.server){const choice=await dialog.showMessageBox(win||undefined,{buttons:['Cancel','Connect'],defaultId:0,cancelId:0,message:'Connect e-server to this server?',detail:origin});if(choice.response!==1)return;}if(win){pendingServer=origin;quitting=true;restartOnClosed=true;win.close();}else{config.server=origin;await save();if(ready)await connect();}}catch(error){dialog.showErrorBox('Invalid e-server connection',error.message);}}
 async function start(){
  await fs.mkdir(HOME,{recursive:true,mode:0o700});
  if(process.platform!=='win32')await fs.chmod(HOME,0o700);
  try{config=JSON.parse(await fs.readFile(path.join(HOME,'settings.json'),'utf8'));if(config.server)config.server=serverOrigin(config.server,{development});}catch{config={};}
  if(fixture)config.server=serverOrigin(fixture,{development:true});
  if(app.isPackaged)app.setAsDefaultProtocolClient('e-server');
- Menu.setApplicationMenu(Menu.buildFromTemplate([
-  {label:'e-server',submenu:[{label:'Open e-server',click:show},{label:'Change server…',click:()=>{publish({phase:'setup',title:'Connect to an e-server',error:''});setupWindow();}},{label:'Cancel sign-in',click:()=>void cancelSignIn()},{type:'separator'},{label:'Check for updates',click:()=>void checkUpdate(false,true)},{label:'Restart to apply update',click:()=>void applyStaged(true)},{type:'separator'},{role:'quit'}]},
-  {role:'editMenu'},{label:'View',submenu:[{role:'reload'},{role:'togglefullscreen'},{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'}]}
- ]));
- try{tray=new Tray(icon);tray.setToolTip('e-server');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open e-server',click:show},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',show);}catch{}
+ Menu.setApplicationMenu(null);
+ try{tray=new Tray(icon);tray.setToolTip('e-server');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open e-server',click:show},{label:'Change server…',click:changeServer},{label:'Sign out of Easter Company',click:()=>void signOutCompany()},{type:'separator'},{label:'Cancel sign-in',click:()=>{company?.cancel();void cancelSignIn();}},{label:'Check for updates',click:()=>void checkUpdate(false,true)},{label:'Restart to apply update',click:()=>void applyStaged(true)},{type:'separator'},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',show);}catch{}
  ipcMain.handle('client:state',event=>{local(event);return state;});
- ipcMain.handle('client:connect',async(event,value)=>{local(event);const origin=serverOrigin(value,{development});if(win){const choice=await dialog.showMessageBox(win,{buttons:['Cancel','Switch server'],defaultId:0,cancelId:0,message:'Switch your e-server connection?',detail:'Finish transfers and save your work first.'});if(choice.response!==1)return;pendingServer=origin;quitting=true;restartOnClosed=true;win.close();}else{config.server=origin;await save();await connect();}});
- ipcMain.handle('client:retry',async event=>{local(event);if(state.phase==='update-error')await checkUpdate(true);else if(win){win.reload();setup.close();win.show();}else await connect();});
+ ipcMain.handle('client:connect',async(event,value)=>{local(event);company.require();const origin=serverOrigin(value,{development});if(win){const choice=await dialog.showMessageBox(win,{buttons:['Cancel','Switch server'],defaultId:0,cancelId:0,message:'Switch your e-server connection?',detail:'Finish transfers and save your work first.'});if(choice.response!==1)return;pendingServer=origin;quitting=true;restartOnClosed=true;win.close();}else{config.server=origin;await save();await connect();}});
+ ipcMain.handle('client:retry',async event=>{local(event);company.require();if(state.phase==='update-error')await checkUpdate(true);else if(win){win.reload();setup.close();win.show();}else await connect();});
  ipcMain.handle('client:installer',event=>{local(event);return shell.openExternal(installer);});
  ipcMain.handle('client:external',(event,value)=>{remote(event);return openExternal(value);});
  ipcMain.handle('client:provider',(event,value)=>{remote(event);externalAuth=true;return openExternal(value);});
@@ -177,10 +201,18 @@ async function start(){
  ipcMain.handle('client:cancel-signin',event=>{remote(event);return cancelSignIn();});
  ipcMain.on('client:activity',event=>{try{remote(event);activity=Date.now();}catch{}});
  ipcMain.on('client:signin-finished',event=>{try{remote(event);externalAuth=false;}catch{}});
+ const accounts=await initializeCompany();
+ ipcMain.handle('company:login',async(event,identifier,password)=>{local(event);await company.login(identifier,password);await afterCompany();return company.view();});
+ ipcMain.handle('company:provider',async(event,provider)=>{local(event);if(!['microsoft','google','steam','discord'].includes(provider))throw Error('Choose a sign-in provider.');await company.signIn(provider);await afterCompany();return company.view();});
+ ipcMain.handle('company:providers',event=>{local(event);return accounts.providers();});
+ ipcMain.handle('company:finish',async(event,username,password)=>{local(event);await company.finish(username,password);await afterCompany();return company.view();});
+ ipcMain.handle('company:cancel',event=>{local(event);company.cancel();});
+ ipcMain.handle('company:signout',event=>{local(event);return signOutCompany();});
+ await company.restore();
  ready=true;const link=process.argv.find(v=>v.startsWith('e-server:'));
  if(link){await receiveLink(link);if(!config.server)return;}
  if(await checkUpdate(true))return;
  await connect();schedule();
 }
-app.on('before-quit',()=>{quitting=true;clearTimeout(pollTimer);auth?.abort();});
+app.on('before-quit',()=>{quitting=true;clearTimeout(pollTimer);auth?.abort();company?.cancel();});
 app.on('window-all-closed',()=>{if(!restartOnClosed&&(!tray||quitting))app.quit();});

@@ -22,11 +22,11 @@ const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:
   const rpc=(method,params={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});socket.send(JSON.stringify({id,method,params}));});
   let result;
   for(let i=0;i<60;i++){
-   result=await rpc('Runtime.evaluate',{expression:'({title:document.title,heading:document.querySelector("h1")?.textContent,connect:!!document.querySelector("#connect button"),bridge:!!window.eServerSetup,node:typeof require,process:typeof process})',returnByValue:true});
-   if(result.result?.value?.bridge&&result.result.value.connect)break;
+   result=await rpc('Runtime.evaluate',{expression:'({title:document.title,heading:document.querySelector("h1")?.textContent,connect:!!document.querySelector("#connect")&&!document.querySelector("#connect").hidden,signin:!!document.querySelector("input[name=identifier]"),bridge:!!window.eServerSetup,node:typeof require,process:typeof process})',returnByValue:true});
+   if(result.result?.value?.bridge&&result.result.value.signin)break;
    await new Promise(resolve=>setTimeout(resolve,250));
   }
-  const view=result.result.value;assert.equal(view.title,'e-server');assert.equal(view.connect,true);assert.equal(view.bridge,true);assert.equal(view.node,'undefined');assert.equal(view.process,'undefined');
+  const view=result.result.value;assert.equal(view.title,'e-server');assert.equal(view.connect,false);assert.equal(view.signin,true);assert.equal(view.bridge,true);assert.equal(view.node,'undefined');assert.equal(view.process,'undefined');
   const screenshot=await rpc('Page.captureScreenshot',{format:'png'});await fs.mkdir('release',{recursive:true});await fs.writeFile('release/packaged-first-screen-'+process.platform+'.png',Buffer.from(screenshot.data,'base64'));
   console.log('Packaged e-server first screen verified:',JSON.stringify(view));
   await rpc('Browser.close').catch(()=>{});
