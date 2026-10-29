@@ -4,9 +4,9 @@
  const BASE='https://github.com/EasterCompany/e-server-client/releases/latest/download/';
  const platforms=[
   {id:'windows',name:'Windows 10+',file:'Easter-e-server-Windows-x64.exe',type:'Windows installer · x64',instructions:'Run the installer and choose your installation folder and shortcuts. This installer is not code-signed: Windows SmartScreen may show “Windows protected your PC”. Confirm you downloaded it from EasterCompany/e-server-client before choosing More info → Run anyway.'},
-  {id:'ubuntu',name:'Ubuntu',file:'Easter-e-server-Linux-amd64.deb',type:'Debian package · amd64',instructions:'Install the downloaded package with your software installer, or run:',command:'sudo apt install ./Easter-e-server-Linux-amd64.deb'},
-  {id:'arch',name:'Arch Linux',file:'Easter-e-server-Linux-x64.pacman',type:'Pacman package · x64',instructions:'Install the downloaded package with:',command:'sudo pacman -U ./Easter-e-server-Linux-x64.pacman'},
-  {id:'appimage',name:'Linux AppImage',file:'Easter-e-server-Linux-x86_64.AppImage',type:'Portable Linux app · x86_64',instructions:'Mark the file executable, then run it. Some distributions need FUSE 2 support (libfuse2 or libfuse2t64 on Ubuntu).',command:'chmod +x ./Easter-e-server-Linux-x86_64.AppImage\n./Easter-e-server-Linux-x86_64.AppImage'}
+  {id:'ubuntu',name:'Ubuntu',file:'Easter-e-server-Linux-amd64.deb',type:'Debian package · amd64',instructions:'Install the package from your Downloads folder with your software installer, or run:',command:'sudo apt install "$HOME/Downloads/Easter-e-server-Linux-amd64.deb"'},
+  {id:'arch',name:'Arch Linux',file:'Easter-e-server-Linux-x64.pacman',type:'Pacman package · x64',instructions:'Install the package from your Downloads folder with:',command:'sudo pacman -U "$HOME/Downloads/Easter-e-server-Linux-x64.pacman"'},
+  {id:'appimage',name:'Linux AppImage',file:'Easter-e-server-Linux-x86_64.AppImage',type:'Portable Linux app · x86_64',instructions:'Mark the file in your Downloads folder executable, then run it. Some distributions need FUSE 2 support (libfuse2 or libfuse2t64 on Ubuntu).',command:'chmod +x "$HOME/Downloads/Easter-e-server-Linux-x86_64.AppImage"\n"$HOME/Downloads/Easter-e-server-Linux-x86_64.AppImage"'}
  ];
  const element=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
  function preferred(){const ua=navigator.userAgent;if(/Windows NT/.test(ua))return platforms[0];if(/Linux/.test(ua)&&!/Android/.test(ua))return platforms[3];return null;}
