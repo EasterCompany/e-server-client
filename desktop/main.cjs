@@ -92,7 +92,7 @@ async function connect(){
   const result=await dialog.showMessageBox(current,{type:'warning',buttons:['Stay','Leave'],defaultId:0,cancelId:0,message:'This page has unsaved work or an active transfer. Leave anyway?'});
   if(result.response===1)event.preventDefault();else{quitting=false;restartOnClosed=false;pendingServer=null;}
  });
- if(!remembered)current.webContents.once('did-finish-load',()=>dialog.showMessageBox(current,{message:'A secure keyring is unavailable.',detail:'Your sign-in will last for this app session only. Enable your operating system keyring to remember it.',buttons:['OK']}));
+ if(!remembered&&!fixture)current.webContents.once('did-finish-load',()=>dialog.showMessageBox(current,{message:'A secure keyring is unavailable.',detail:'Your sign-in will last for this app session only. Enable your operating system keyring to remember it.',buttons:['OK']}));
  await current.loadURL(config.server+'/');
 }
 async function openExternal(value){try{const url=externalURL(value);externalAuth=true;await shell.openExternal(url);return true;}catch{return false;}}
