@@ -5,6 +5,25 @@ const fs=raw.promises;
 const REPO='https://github.com/EasterCompany/e-server-client/releases/download/';
 const LATEST='https://github.com/EasterCompany/e-server-client/releases/latest/download/';
 const BOOTSTRAP=1,MAX_BYTES=200*1024*1024;
+// WHICH package names this client accepts as ITS OWN update payload, and why that is a list.
+//
+// Owen, 2026-10-29: "you mean easter-server-client lol?" - the package really is misnamed. It
+// cannot be renamed in one edit, and the reason is the machines already in the field, not caution:
+// every published build (1.0.0, 1.0.1, 1.0.2) carries a guard that compares the DOWNLOADED
+// payload's package.json name to the OLD literal, so a renamed payload is refused by every install
+// that exists - the app keeps working and silently stops updating forever. That is the worst
+// failure shape there is, so the rename takes three releases:
+//   * 1.0.3 keeps PUBLISHING the old name, and both guards accept EITHER name. This build.
+//   * 1.0.4 publishes the new name. Only an install that passed through 1.0.3 can read it.
+//   * 1.0.5 is the earliest release that may DROP the old name from this list - and only after
+//     every install that can auto-update has been through 1.0.3, because releases/latest is the
+//     only address an old app ever consults: a machine that missed 1.0.3 will be handed the
+//     renamed payload and refuse it, and needs a manual reinstall rather than a cleverer guard.
+//
+// The unguarded alternative - accepting any name, or any version - is not available: this is the
+// check that stops a foreign asar being installed as this app.
+const PAYLOAD_NAMES=['easter-eserver-client','easter-server-client'];
+function identifies(pkg,manifest){return !!pkg&&!!manifest&&PAYLOAD_NAMES.includes(pkg.name)&&pkg.version===manifest.version;}
 // The one refusal for a version this e-server client cannot read. It carries a name and a code as
 // well as the sentence a player sees, because the clear policy below has to be able to say
 // "this pair was unparsable" without mistaking it for a filesystem failure.
@@ -173,4 +192,4 @@ async function activateStaged({root,runtime,current,platform=process.platform,ar
  return {...manifest,file};
 }
 
-module.exports={update,selected,staged,activateStaged,validate,compare,version};
+module.exports={update,selected,staged,activateStaged,validate,compare,version,identifies,PAYLOAD_NAMES};

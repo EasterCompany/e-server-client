@@ -18,7 +18,7 @@ let activity=Date.now(),downloads=0,requests=new Set(),failures=0,captureGranted
 let state={phase:'auth',version:VERSION,server:'',accountBusy:true};
 let activeSession=null;
 let company=null,windowAccount=null,pendingLink=null;
-const inspect=(file,manifest)=>{const pkg=require(file+'/package.json');if(pkg.name!=='easter-eserver-client'||pkg.version!==manifest.version)throw Error('Invalid e-server client update.');};
+const inspect=(file,manifest)=>{const pkg=require(file+'/package.json');if(!updater.identifies(pkg,manifest))throw Error('Invalid e-server client update.');};
 if(!app.requestSingleInstanceLock()){app.quit();}else{
  app.on('second-instance',(_,argv)=>{const link=argv.find(v=>v.startsWith('e-server:'));if(link)void receiveLink(link);else show();});
  app.on('open-url',(event,url)=>{event.preventDefault();void receiveLink(url);});
