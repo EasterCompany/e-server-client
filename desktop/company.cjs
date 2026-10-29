@@ -1,5 +1,18 @@
 'use strict';
-// Global identity stays in the main process. Server origins never receive this token.
+// Global identity stays in the main process, and the token leaves it exactly once, on purpose.
+//
+// THE RULE, AMENDED IN PLACE (2026-10-29, not silently broken). This line used to read "Server
+// origins never receive this token", which was absolute while the app only spoke to the accounts
+// service. The e-server page now asks the app to prove the Company session it ALREADY holds
+// (api/profile_assets/handoff.mjs) so a person signs in once instead of twice, and only the main
+// process can do that: it POSTs this token as `Authorization: Bearer` to
+// /desktop/auth/company on the server this client is ALREADY connected to (desktop/bridge.cjs),
+// which asks the accounts service who it is and binds the PIN session. So the narrower, still
+// absolute rule is: the token leaves the main process ONLY as the Bearer credential of that one
+// main-process POST, to that one connected origin. It never reaches a renderer, a URL, a
+// redirect, a log line or an update payload - the page that triggers the call never sees it,
+// which is the reason the call exists in the main process at all.
+// `credential()` is the single door and only main.cjs's bound handlers go through it.
 class CompanyAccount{
  constructor({client,toSession,publicAccount,vault,file,changed=()=>{},microsoft,provider,now=Date.now}){
   Object.assign(this,{client,toSession,publicAccount,vault,file,changed,microsoft,provider,now});
@@ -7,6 +20,10 @@ class CompanyAccount{
  }
  authorized(){return !!this.session&&this.session.expiresAt>this.now()&&!this.session.account.passwordRequired;}
  key(){this.require();return this.session.account.id;}
+ // The one accessor for the token itself: the main process's proof of this session to the
+ // server it is already connected to (desktop/bridge.cjs). Deliberately NOT part of view(),
+ // and nothing it returns is ever put in a state payload, a prompt or a sentence.
+ credential(){this.require();return this.session.token;}
  require(){if(!this.authorized())throw Error('Sign in to your Easter Company account before choosing a server.');}
  view(){return {account:this.session&&this.session.expiresAt>this.now()?this.publicAccount(this.session):null,accountReady:this.authorized(),accountBusy:this.busy,accountError:this.error,accountNotice:this.notice};}
  emit(){this.changed(this.view());}

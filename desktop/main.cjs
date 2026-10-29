@@ -4,6 +4,7 @@ const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('n
 const {pathToFileURL}=require('node:url');
 const {HEADER,CLIENT,serverRequest,serverOrigin,externalURL,connectionLink,trusted,localFrame,updateLevel,relaunchOptions}=require('./security.cjs');
 const updater=require('./updater.cjs');
+const bridge=require('./bridge.cjs');
 const {CompanyAccount}=require('./company.cjs'),{CompanyMicrosoft}=require('./company-microsoft.cjs');
 const vault=require('./vendor/launcher/vault.cjs'),{providerSignIn}=require('./vendor/launcher/providers.cjs');
 const VERSION=require('../package.json').version,RUNTIME=process.versions.electron;
@@ -27,9 +28,35 @@ function show(){if(!company?.authorized()){setupWindow();return;}const target=wi
 function publish(next){state={...state,...next,...company?.view(),version:VERSION,server:company?.authorized()?config.server||'':''};if(setup&&!setup.isDestroyed())setup.webContents.send('client:state',state);}
 function accountChanged(){if(!company?.authorized()){win?.hide();publish({phase:'auth',title:'Sign in to Easter Company.',error:''});setupWindow();}else publish({});}
 function changeServer(){if(!company?.authorized()){setupWindow();return;}publish({phase:'setup',title:'Connect to an e-server',error:''});setupWindow();}
+// ONE SIGN-OUT, BOTH SCOPES (docs/COMPANY_LOGIN.md). The client's OWN half ends FIRST - the
+// memory token cleared, the keyring entry removed and the app back at its own sign-in screen,
+// exactly as this flow always did - and only then does the main process report it to the
+// connected server, which ends the PIN session and revokes the binding behind it. The order
+// is the contract: the server's answer may only say 'ended' about a global session that is
+// already gone here (desktop/bridge.cjs). The tray menu and the server page's own sign-out
+// both come through here, so a menu and a top-nav sign-out cannot drift apart. The page's
+// bridge call adds no dialog: that question belongs to the tray, where a menu item is a
+// destructive action.
+function endCompanySession(){
+ const origin=config.server,connected=activeSession;
+ return bridge.endSession({origin,endOwn:()=>company.signOut(),send:(url,init)=>connected?connected.fetch(url,init):Promise.reject(Error('Connect to your e-server first.'))});
+}
 async function signOutCompany(){
  const choice=await dialog.showMessageBox(win||setup||undefined,{type:'question',buttons:['Cancel','Sign out'],defaultId:0,cancelId:0,message:'Sign out of Easter Company?',detail:'Save your work first. The client will lock until you sign in again.'});
- if(choice.response===1)await company.signOut();
+ if(choice.response===1)return endCompanySession();
+ return null;
+}
+// window.eServerClient.bindSession(next): the MAIN process proves the Easter Company session it
+// already holds, so the server can bind this PIN session to that account instead of asking the
+// person to sign in a second time. The token is read here and leaves the main process only as
+// the Authorization header of that one POST - never into a renderer, a URL, a redirect, a log
+// line or an update payload. Answers {ok:true,next} or {ok:false,error}; it never rejects into
+// the page, because the page's fallback is its catch and a named code is the honest refusal.
+function bindCompanySession(next){
+ let token='';
+ try{token=company.credential();}catch{return Promise.resolve({ok:false,error:'company_sign_in_required',status:0,detail:''});}
+ const connected=activeSession;
+ return bridge.bindSession({origin:config.server,token,next,send:(url,init)=>connected?connected.fetch(url,init):Promise.reject(Error('Connect to your e-server first.'))});
 }
 async function initializeCompany(){
  const {AccountClient,companySession,publicAccount}=await import('./vendor/launcher/account-client.mjs');
@@ -199,6 +226,11 @@ async function start(){
  ipcMain.handle('client:provider',(event,value)=>{remote(event);externalAuth=true;return openExternal(value);});
  ipcMain.handle('client:microsoft',event=>{remote(event);return microsoft();});
  ipcMain.handle('client:cancel-signin',event=>{remote(event);return cancelSignIn();});
+ // The server page's two bridge actions. `remote(event)` is the existing main-frame-only guard
+ // (this exact window, this exact origin): any other renderer gets a refusal, not an answer, and
+ // nothing here can be reached from the setup window or from a frame the app did not load.
+ ipcMain.handle('client:handoff',(event,next)=>{remote(event);return bindCompanySession(next);});
+ ipcMain.handle('client:signout',event=>{remote(event);return endCompanySession();});
  ipcMain.on('client:activity',event=>{try{remote(event);activity=Date.now();}catch{}});
  ipcMain.on('client:signin-finished',event=>{try{remote(event);externalAuth=false;}catch{}});
  const accounts=await initializeCompany();
