@@ -137,7 +137,7 @@ async function applyStaged(manual=false){
 function restart(){
  app.relaunch(relaunchOptions({packaged:app.isPackaged,appPath:app.getAppPath(),hidden:restartingHidden}));app.quit();
 }
-async function checkUpdate(startup=false){
+async function checkUpdate(startup=false,manual=false){
  if(fixture||!app.isPackaged)return;
  try{
   const latest=await probe();
@@ -146,10 +146,12 @@ async function checkUpdate(startup=false){
    await updater.update({current:VERSION,root:UPDATES,runtime:RUNTIME,inspect,apply:false,notify:startup?value=>publish({...value,title:'Updating e-server'}):()=>{}});
    failures=0;
    if(startup){await updater.activateStaged({root:UPDATES,current:VERSION,runtime:RUNTIME,inspect});quitting=true;restart();return true;}
-   await applyStaged(false);
+   await applyStaged(manual);
+  }else if(manual){
+   await dialog.showMessageBox(win||setup||undefined,{type:'info',message:'e-server is up to date.',detail:'Installed client: '+VERSION,buttons:['OK']});
   }
   failures=0;
- }catch(error){failures=Math.min(3,failures+1);if(startup){setupWindow();publish({phase:'update-error',title:'Update unavailable',message:'The installed client will keep working. Use the app menu to check again.',error:error.message});}}
+ }catch(error){failures=Math.min(3,failures+1);if(startup){setupWindow();publish({phase:'update-error',title:'Update unavailable',message:'The installed client will keep working. Use the app menu to check again.',error:error.message});}else if(manual){const choice=await dialog.showMessageBox(win||setup||undefined,{type:'warning',message:'The update could not be installed.',detail:error.message+'\nYour installed client will keep working. A new desktop runtime may require the full installer.',buttons:['Download installer','Close'],defaultId:1,cancelId:1});if(choice.response===0)await shell.openExternal(installer);}}
  return false;
 }
 function schedule(){clearTimeout(pollTimer);pollTimer=setTimeout(async()=>{await checkUpdate();await applyStaged(false);schedule();},Math.min(60,15*2**failures)*60000+Math.random()*90000);pollTimer.unref();}
@@ -161,7 +163,7 @@ async function start(){
  if(fixture)config.server=serverOrigin(fixture,{development:true});
  if(app.isPackaged)app.setAsDefaultProtocolClient('e-server');
  Menu.setApplicationMenu(Menu.buildFromTemplate([
-  {label:'e-server',submenu:[{label:'Open e-server',click:show},{label:'Change server…',click:()=>{publish({phase:'setup',title:'Connect to an e-server',error:''});setupWindow();}},{label:'Cancel sign-in',click:()=>void cancelSignIn()},{type:'separator'},{label:'Check for updates',click:()=>void checkUpdate()},{label:'Restart to apply update',click:()=>void applyStaged(true)},{type:'separator'},{role:'quit'}]},
+  {label:'e-server',submenu:[{label:'Open e-server',click:show},{label:'Change server…',click:()=>{publish({phase:'setup',title:'Connect to an e-server',error:''});setupWindow();}},{label:'Cancel sign-in',click:()=>void cancelSignIn()},{type:'separator'},{label:'Check for updates',click:()=>void checkUpdate(false,true)},{label:'Restart to apply update',click:()=>void applyStaged(true)},{type:'separator'},{role:'quit'}]},
   {role:'editMenu'},{label:'View',submenu:[{role:'reload'},{role:'togglefullscreen'},{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'}]}
  ]));
  try{tray=new Tray(icon);tray.setToolTip('e-server');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open e-server',click:show},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',show);}catch{}
