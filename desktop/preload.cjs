@@ -4,6 +4,10 @@ if(location.protocol==='file:'){
  contextBridge.exposeInMainWorld('eServerSetup',{
   connect:origin=>ipcRenderer.invoke('client:connect',origin),state:()=>ipcRenderer.invoke('client:state'),
   retry:()=>ipcRenderer.invoke('client:retry'),download:()=>ipcRenderer.invoke('client:installer'),
+  login:(identifier,password)=>ipcRenderer.invoke('company:login',identifier,password),
+  provider:provider=>ipcRenderer.invoke('company:provider',provider),providers:()=>ipcRenderer.invoke('company:providers'),
+  finish:(username,password)=>ipcRenderer.invoke('company:finish',username,password),
+  cancelAccount:()=>ipcRenderer.invoke('company:cancel'),signOut:()=>ipcRenderer.invoke('company:signout'),
   onState:callback=>{const listener=(_,state)=>callback(state);ipcRenderer.on('client:state',listener);return()=>ipcRenderer.removeListener('client:state',listener);}
  });
 }else{

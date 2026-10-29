@@ -6,6 +6,9 @@ test('native UI hint reaches this server and harness TLS ports only',()=>{
  for(const url of ['https://server.example.evil/','https://other.example/','http://server.example/','ws://server.example/','file:///etc/passwd','https://user:pass@server.example/'])assert.equal(serverRequest(url,'https://server.example'),false);
 });
 test('server address is a private connection choice, never arbitrary navigation or credentials',()=>{
+ assert.equal(serverOrigin('http://easter-server.char-istrian.ts.net'),'https://easter-server.char-istrian.ts.net');
+ assert.throws(()=>serverOrigin('http://easter-server.char-istrian.ts.net.evil.example'));
+ assert.throws(()=>serverOrigin('http://easter-server.char-istrian.ts.net:8090'));
  assert.equal(serverOrigin('https://server.example:8443/'),'https://server.example:8443');
  for(const url of ['http://example.com','file:///etc/passwd','javascript:alert(1)','https://user:password@example.com','https://example.com/path','https://example.com/?token=x'])assert.throws(()=>serverOrigin(url));
  assert.throws(()=>serverOrigin('http://localhost:1234'));
