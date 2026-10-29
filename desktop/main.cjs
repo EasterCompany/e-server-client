@@ -95,10 +95,10 @@ async function connect(){
  if(!remembered&&!fixture)current.webContents.once('did-finish-load',()=>dialog.showMessageBox(current,{message:'A secure keyring is unavailable.',detail:'Your sign-in will last for this app session only. Enable your operating system keyring to remember it.',buttons:['OK']}));
  await current.loadURL(config.server+'/');
 }
-async function openExternal(value){try{const url=externalURL(value);externalAuth=true;await shell.openExternal(url);return true;}catch{return false;}}
+async function openExternal(value){try{const url=externalURL(value);await shell.openExternal(url);return true;}catch{return false;}}
 async function ask(route,{method='GET',body}={}){
  if(!activeSession)throw Error('Connect to your e-server first.');
- const response=await activeSession.fetch(config.server+route,{method,headers:{[HEADER]:CLIENT,'Content-Type':'application/json','X-Easter-Desktop-Request':'1'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
+ const response=await activeSession.fetch(config.server+route,{method,credentials:'include',headers:{[HEADER]:CLIENT,'Content-Type':'application/json','X-Easter-Desktop-Request':'1'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
  let data;try{data=await response.json();}catch{throw Error('Your server did not return a valid response.');}
  if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Your server refused this request.');return data;
 }
@@ -134,7 +134,7 @@ async function applyStaged(manual=false){
  if(win)win.close();else restart();return true;
 }
 function restart(){
- app.relaunch(relaunchOptions({packaged:app.isPackaged,appPath:app.getAppPath(),hidden:restartingHidden}));app.exit(0);
+ app.relaunch(relaunchOptions({packaged:app.isPackaged,appPath:app.getAppPath(),hidden:restartingHidden}));app.quit();
 }
 async function checkUpdate(startup=false){
  if(fixture||!app.isPackaged)return;
@@ -155,6 +155,7 @@ function schedule(){clearTimeout(pollTimer);pollTimer=setTimeout(async()=>{await
 async function receiveLink(value){try{const origin=connectionLink(value);await app.whenReady();if(origin===config.server){show();return;}if(config.server){const choice=await dialog.showMessageBox(win||undefined,{buttons:['Cancel','Connect'],defaultId:0,cancelId:0,message:'Connect e-server to this server?',detail:origin});if(choice.response!==1)return;}if(win){pendingServer=origin;quitting=true;restartOnClosed=true;win.close();}else{config.server=origin;await save();if(ready)await connect();}}catch(error){dialog.showErrorBox('Invalid e-server connection',error.message);}}
 async function start(){
  await fs.mkdir(HOME,{recursive:true,mode:0o700});
+ if(process.platform!=='win32')await fs.chmod(HOME,0o700);
  try{config=JSON.parse(await fs.readFile(path.join(HOME,'settings.json'),'utf8'));if(config.server)config.server=serverOrigin(config.server,{development});}catch{config={};}
  if(fixture)config.server=serverOrigin(fixture,{development:true});
  if(app.isPackaged)app.setAsDefaultProtocolClient('e-server');
@@ -168,6 +169,7 @@ async function start(){
  ipcMain.handle('client:retry',async event=>{local(event);if(state.phase==='update-error')await checkUpdate(true);else if(win){win.reload();setup.close();win.show();}else await connect();});
  ipcMain.handle('client:installer',event=>{local(event);return shell.openExternal(installer);});
  ipcMain.handle('client:external',(event,value)=>{remote(event);return openExternal(value);});
+ ipcMain.handle('client:provider',(event,value)=>{remote(event);externalAuth=true;return openExternal(value);});
  ipcMain.handle('client:microsoft',event=>{remote(event);return microsoft();});
  ipcMain.handle('client:cancel-signin',event=>{remote(event);return cancelSignIn();});
  ipcMain.on('client:activity',event=>{try{remote(event);activity=Date.now();}catch{}});

@@ -9,6 +9,7 @@ if(location.protocol==='file:'){
 }else{
  contextBridge.exposeInMainWorld('eServerClient',{
   openExternal:value=>ipcRenderer.invoke('client:external',value),microsoft:()=>ipcRenderer.invoke('client:microsoft'),
+  provider:value=>ipcRenderer.invoke('client:provider',value),
   signInFinished:()=>ipcRenderer.send('client:signin-finished'),cancelSignIn:()=>ipcRenderer.invoke('client:cancel-signin')
  });
  let last=0;

@@ -18,6 +18,7 @@ const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:
   assert.ok(target,'Packaged first screen did not open: '+log);
   socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
   let next=0;const pending=new Map();socket.onmessage=event=>{const data=JSON.parse(event.data);const promise=pending.get(data.id);if(promise){pending.delete(data.id);data.error?promise.reject(Error(data.error.message)):promise.resolve(data.result);}};
+  socket.onclose=()=>{for(const promise of pending.values())promise.reject(Error('The client closed its debugging session.'));pending.clear();};
   const rpc=(method,params={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});socket.send(JSON.stringify({id,method,params}));});
   let result;
   for(let i=0;i<60;i++){
