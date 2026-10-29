@@ -1,6 +1,10 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const {serverOrigin,externalURL,connectionLink,trusted,updateLevel}=require('../desktop/security.cjs');
+const {serverOrigin,serverRequest,externalURL,connectionLink,trusted,updateLevel}=require('../desktop/security.cjs');
+test('native UI hint reaches this server and harness TLS ports only',()=>{
+ for(const url of ['https://server.example/','https://server.example:8443/api/','wss://server.example:8443/socket'])assert.equal(serverRequest(url,'https://server.example'),true);
+ for(const url of ['https://server.example.evil/','https://other.example/','http://server.example/','ws://server.example/','file:///etc/passwd','https://user:pass@server.example/'])assert.equal(serverRequest(url,'https://server.example'),false);
+});
 test('server address is a private connection choice, never arbitrary navigation or credentials',()=>{
  assert.equal(serverOrigin('https://server.example:8443/'),'https://server.example:8443');
  for(const url of ['http://example.com','file:///etc/passwd','javascript:alert(1)','https://user:password@example.com','https://example.com/path','https://example.com/?token=x'])assert.throws(()=>serverOrigin(url));

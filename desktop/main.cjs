@@ -2,7 +2,7 @@
 const {app,BrowserWindow,Menu,Tray,ipcMain,shell,dialog,session,safeStorage,desktopCapturer}=require('electron');
 const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('node:crypto'),https=require('node:https');
 const {pathToFileURL}=require('node:url');
-const {HEADER,CLIENT,serverOrigin,externalURL,connectionLink,trusted,localFrame,updateLevel,relaunchOptions}=require('./security.cjs');
+const {HEADER,CLIENT,serverRequest,serverOrigin,externalURL,connectionLink,trusted,localFrame,updateLevel,relaunchOptions}=require('./security.cjs');
 const updater=require('./updater.cjs');
 const VERSION=require('../package.json').version,RUNTIME=process.versions.electron;
 const HOME=path.join(app.getPath('appData'),'Easter Company','e-server-client'),UPDATES=path.join(HOME,'updates');
@@ -45,8 +45,9 @@ async function connect(){
  config.serverVersions={...config.serverVersions,[config.server]:VERSION};await save();
  activeSession.webRequest.onBeforeSendHeaders((details,callback)=>{
   const headers={...details.requestHeaders};delete headers[HEADER];delete headers[HEADER.toLowerCase()];
-  try{const url=new URL(details.url);if(url.origin===config.server||['ws:','wss:'].includes(url.protocol)&&url.host===new URL(config.server).host)headers[HEADER]=CLIENT;}catch{}
-  if(!['GET','HEAD','OPTIONS'].includes(details.method)&&details.url.startsWith(config.server+'/'))requests.add(details.id);
+  // The harness uses another TLS port on the same server. This UI hint carries no credentials.
+  if(serverRequest(details.url,config.server))headers[HEADER]=CLIENT;
+  if(!['GET','HEAD','OPTIONS'].includes(details.method)&&serverRequest(details.url,config.server))requests.add(details.id);
   callback({requestHeaders:headers});
  });
  const complete=details=>requests.delete(details.id);

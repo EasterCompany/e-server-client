@@ -1,5 +1,8 @@
 'use strict';
 const HEADER='X-Easter-Desktop',CLIENT='e-server/1';
+function serverRequest(value,origin){
+ try{const target=new URL(value),server=new URL(origin);const protocol=target.protocol.replace('wss:','https:').replace('ws:','http:');return !target.username&&!target.password&&target.hostname===server.hostname&&protocol===server.protocol;}catch{return false;}
+}
 function serverOrigin(value,{development=false}={}){
  let url;try{url=new URL(String(value).trim());}catch{throw Error('Enter the full HTTPS address of your e-server.');}
  const loopback=['127.0.0.1','localhost','[::1]'].includes(url.hostname);
@@ -16,4 +19,4 @@ function relaunchOptions({platform=process.platform,env=process.env,execPath=pro
  const args=packaged?[]:[appPath];if(argv.includes('--no-sandbox'))args.push('--no-sandbox');if(hidden)args.push('--hidden-to-tray');
  return {execPath:platform==='linux'&&env.APPIMAGE?env.APPIMAGE:execPath,args};
 }
-module.exports={HEADER,CLIENT,serverOrigin,externalURL,connectionLink,trusted,localFrame,updateLevel,relaunchOptions};
+module.exports={HEADER,CLIENT,serverRequest,serverOrigin,externalURL,connectionLink,trusted,localFrame,updateLevel,relaunchOptions};
