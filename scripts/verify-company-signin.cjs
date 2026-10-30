@@ -310,6 +310,9 @@ function layoutOf(measurement){
 // ---- the run -----------------------------------------------------------------------------------
 const report=[];
 const failures=[];
+// Kept for the printed measurements at the end: the numbers are the evidence, and a PASS with no
+// number beside it is a claim nobody can check.
+const measured={client:{},control:{}};
 const check=(name,ok,detail)=>{report.push({name,ok,detail});if(!ok)failures.push(name+': '+detail);};
 const skip=(name,detail)=>report.push({name,ok:'skip',detail});
 const note=[];
@@ -347,6 +350,7 @@ const note=[];
   for(const viewport of VIEWPORTS){
    await client.page.viewport(viewport);
    clientMeasurements[viewport.width]=await client.page.evaluate(MEASURE);
+   measured.client[viewport.width]=clientMeasurements[viewport.width];
    await client.page.screenshot(path.join(REPO,'release','company-signin-client-'+viewport.width+'x'+viewport.height+'-'+process.platform+'.png')).catch(()=>{});
   }
 
@@ -357,6 +361,7 @@ const note=[];
   for(const viewport of VIEWPORTS){
    await chromium.page.viewport(viewport);
    controlMeasurements[viewport.width]=await chromium.page.evaluate(MEASURE);
+   measured.control[viewport.width]=controlMeasurements[viewport.width];
    await chromium.page.screenshot(path.join(REPO,'release','company-signin-site-'+viewport.width+'x'+viewport.height+'-'+process.platform+'.png')).catch(()=>{});
   }
 
@@ -390,12 +395,24 @@ const note=[];
   check('the heading is e-server\u2019s heading face',colours.headingStyle.color==='rgb(255, 255, 255)'&&colours.headingStyle.fontWeight==='600',colours.headingStyle.color+' '+colours.headingStyle.fontWeight);
   check('the Easter Company fire phoenix stands beside the wordmark',!!colours.mark&&colours.mark.loaded&&colours.mark.src==='../assets/ec-logo.svg',JSON.stringify(colours.mark));
   check('the mark is drawn at the site\u2019s 26x26',!!colours.mark&&colours.mark.box.width===26&&colours.mark.box.height===26,JSON.stringify(colours.mark&&colours.mark.box));
+  // site/styles.css hides the wordmark below 600px to make room for a phone's navigation, which
+  // this client does not have: the mark and the wordmark stay at the window's own minimum size.
+  const narrowMark=(measured.client[360]||{}).mark;
+  check('the mark and wordmark are still drawn at 360x500',!!narrowMark&&narrowMark.loaded&&narrowMark.box.width===26&&narrowMark.box.height===26,JSON.stringify(narrowMark&&narrowMark.box));
   check('the wordmark beside it is e-server\u2019s',colours.wordmark.text==='e-server',JSON.stringify(colours.wordmark.text));
   // The skin must change nothing about the boxes: this is the same comparison as step 4, at the
   // narrow width, where a re-skin is most likely to start changing wrapping or sizes.
   const clientNarrow=clientMeasurements[360],siteNarrow=controlMeasurements[360];
   check('at 360x500 the controls still match the site\u2019s',JSON.stringify(layoutOf(clientNarrow).rows)===JSON.stringify(layoutOf(siteNarrow).rows)&&clientNarrow.panel.box.width===siteNarrow.panel.box.width,
    'client '+JSON.stringify(clientNarrow.rows.map(row=>[row.width,row.height]))+'\nsite   '+JSON.stringify(siteNarrow.rows.map(row=>[row.width,row.height])));
+  // The one difference the re-skin makes to a box, named rather than hidden: e-server's heading
+  // face is wider than the site's serif at the same size, so at the window's minimum width the
+  // heading wraps to a second line and the panel is one line taller. Anything more than that would
+  // be a different card.
+  const lineHeight=parseFloat(clientNarrow.headingStyle.lineHeight)||0;
+  const taller=clientNarrow.panel.box.height-siteNarrow.panel.box.height;
+  check('at 360 the panel differs only by the heading\u2019s wrap',taller>=0&&taller<=lineHeight+1,
+   'client '+clientNarrow.panel.box.height+'px vs site '+siteNarrow.panel.box.height+'px, one heading line is '+lineHeight.toFixed(1)+'px');
   for(const viewport of VIEWPORTS){
    const measurement=clientMeasurements[viewport.width];
    check('no horizontal overflow at '+viewport.width+'x'+viewport.height,measurement.shell.scrollWidth<=measurement.shell.clientWidth,
@@ -503,6 +520,23 @@ const note=[];
  console.log('site control    : '+path.join(SITE,'account')+' served on a loopback origin, rendered in the same Chromium build');
  console.log('viewports       : '+VIEWPORTS.map(viewport=>viewport.width+'x'+viewport.height).join(', ')+' CSS pixels, by CDP device-metrics emulation\n');
  for(const line of report)console.log((line.ok===true?'PASS   ':line.ok==='skip'?'SKIP   ':'FAIL   ')+line.name+(line.detail?'   ['+line.detail+']':''));
+ const rows=measurement=>measurement.rows.map(row=>row.width+'x'+row.height+(row.text?'':' (field)')).join(', ');
+ console.log('\n=== measurements, rendered ===');
+ for(const viewport of VIEWPORTS){
+  const client=measured.client[viewport.width],site=measured.control[viewport.width];
+  if(!client||!site)continue;
+  console.log('\n'+viewport.width+'x'+viewport.height+' viewport');
+  console.log('  panel        client '+JSON.stringify({width:client.panel.box.width,height:client.panel.box.height,padding:client.panel.padding,radius:client.panel.radius,border:client.panel.borderWidth})+', site '+JSON.stringify({width:site.panel.box.width,height:site.panel.box.height,padding:site.panel.padding,radius:site.panel.radius,border:site.panel.borderWidth}));
+  console.log('  controls     client '+rows(client));
+  console.log('  controls     site   '+rows(site));
+  console.log('  stack gap    client '+client.gaps+', site '+site.gaps);
+  console.log('  type         client '+client.shell.fontFamily+' / heading '+client.headingStyle.fontSize+' '+client.headingStyle.fontWeight+' '+client.headingStyle.color);
+  console.log('               site   '+site.shell.fontFamily+' / heading '+site.headingStyle.fontSize+' '+site.headingStyle.fontWeight+' '+site.headingStyle.color);
+  console.log('  surfaces     client body '+client.shell.bodyBackground+', panel '+client.panel.background+', primary '+client.rows[0].background+' on '+client.rows[0].colour);
+  console.log('               site   body '+site.shell.bodyBackground+', panel '+site.panel.background+', primary '+site.rows[0].background+' on '+site.rows[0].colour);
+  console.log('  mark         '+(client.mark?client.mark.box.width+'x'+client.mark.box.height+' ('+client.mark.natural.join('x')+' source), wordmark '+JSON.stringify(client.wordmark.text)+' in '+client.wordmark.color:'none'));
+  console.log('  overflow     client '+client.shell.scrollWidth+'/'+client.shell.clientWidth+', site '+site.shell.scrollWidth+'/'+site.shell.clientWidth+' (scrollWidth/clientWidth)');
+ }
  for(const line of note)console.log('\nnote: '+line);
  console.log('\n'+(failures.length?'FAILED '+failures.length+' check(s):\n  '+failures.join('\n  '):'all checks passed'));
  if(failures.length)process.exitCode=1;

@@ -142,6 +142,16 @@
   background: var(--es-card);
   color: var(--es-text);
 }
+/* THE HEADER AT THE WINDOW'S MINIMUM SIZE. site/styles.css hides .site-wordmark below 600px so a
+   phone's navigation has the width; this client has no navigation there (desktop/signin-adapter.mjs
+   removes it), so the mark and the wordmark are the only identity the header has and they stay.
+   Everything else the site does at that width - the centred header, the narrower panel padding, the
+   stacked footer - is left exactly as it is. */
+@media (max-width: 600px) {
+  .account .site-wordmark {
+    display: inline-flex;
+  }
+}
 /* The footer keeps the site's words and its motto's serif italic; only its ink is re-pointed. */
 .account .account-footer {
   color: var(--es-muted);
