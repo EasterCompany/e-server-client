@@ -475,6 +475,22 @@ const note=[];
   // A screenshot of the window as the client draws it, for the record beside the numbers.
   await client.page.viewport({width:680,height:860});
   await client.page.screenshot(path.join(REPO,'release','company-signin-client-window-'+process.platform+'.png')).catch(()=>{});
+
+  // 8. THE OTHER DOCUMENT ON THE SAME SCHEME still works. The sign-in page leaves for this app's
+  // root once it holds an account, and that root is the client's own setup surface: its script has
+  // to answer on this scheme, through the same preload bridge, with the sign-in section gone. This
+  // is the half of the window a signed-in person lands on, so it is checked here even though the
+  // sign-in itself cannot be completed in this suite.
+  await client.page.send('Page.navigate',{url:'e-server-signin://company/'});
+  const setup=await until(()=>client.page.evaluate('(() => { const version = document.querySelector("#version"); return version && version.textContent ? {title: document.title, version: version.textContent, heading: document.querySelector("#title")?.textContent, bridge: !!window.eServerSetup, signin: !!document.querySelector("#account-signin"), identifier: !!document.querySelector("input[name=identifier]"), connect: !!document.querySelector("#connect"), finish: !!document.querySelector("#account-finish")} : null; })()'),
+   {timeout:20000,what:'the client\u2019s own setup surface on e-server-signin://company/'});
+  check('the client\u2019s own setup surface answers on the same scheme',setup.bridge===true&&!!setup.version,JSON.stringify(setup));
+  check('it draws no sign-in of its own',setup.signin===false&&setup.identifier===false&&setup.finish===true&&setup.connect===true,JSON.stringify(setup));
+  check('the window\u2019s title is the client\u2019s there',setup.title==='e-server',JSON.stringify(setup.title));
+  const clientLog=client.log();
+  check('the packaged client reported no uncaught failure while it was driven',
+   !/UnhandledPromiseRejection|uncaught exception|TypeError:|ReferenceError:/i.test(clientLog),
+   clientLog?clientLog.slice(-300).replace(/\n/g,' | '):'no output');
  }finally{
   chromium?.close();
   await site.close();
