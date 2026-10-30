@@ -1,17 +1,27 @@
 'use strict';
 const {app,BrowserWindow,Menu,Tray,ipcMain,shell,dialog,session,safeStorage,desktopCapturer}=require('electron');
 const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('node:crypto'),https=require('node:https');
-const {pathToFileURL}=require('node:url');
-const {HEADER,CLIENT,serverRequest,serverOrigin,externalURL,connectionLink,trusted,localFrame,updateLevel,relaunchOptions}=require('./security.cjs');
+const {HEADER,CLIENT,serverRequest,serverOrigin,externalURL,connectionLink,trusted,setupFrame,updateLevel,relaunchOptions}=require('./security.cjs');
 const updater=require('./updater.cjs');
 const bridge=require('./bridge.cjs');
 const {CompanyAccount}=require('./company.cjs'),{CompanyMicrosoft}=require('./company-microsoft.cjs');
 const vault=require('./vendor/launcher/vault.cjs'),{providerSignIn}=require('./vendor/launcher/providers.cjs');
+// THE SIGN-IN PAGE IS THE SITE'S (desktop/signin.cjs). Its scheme has to be declared before the app
+// is ready, which is why this call sits at module scope; the handler that answers it is installed
+// in start(), before any window exists.
+const signin=require('./signin.cjs');
+signin.registerScheme();
 const VERSION=require('../package.json').version,RUNTIME=process.versions.electron;
 const HOME=path.join(app.getPath('appData'),'Easter Company','e-server-client'),UPDATES=path.join(HOME,'updates');
 app.setPath('userData',HOME);app.setAppUserModelId('ltd.easter.eserver');
 const development=!app.isPackaged,fixture=development?process.env.E_SERVER_CLIENT_TEST_ORIGIN:null;
-const icon=path.join(__dirname,'icon.png'),shellFile=path.join(__dirname,'shell.html');
+// A VERIFICATION-ONLY SWITCH. scripts/smoke.cjs and scripts/verify-company-signin.cjs launch the
+// PACKAGED client and measure the screen a person is given; a startup update check that found a
+// newer release would stage it, restart the app and replace the very screen under measurement, so
+// those two runs set this and the artifact holds still. It can only ever SKIP a check - it cannot
+// install, connect, sign in or widen anything else.
+const skipUpdateCheck=process.env.E_SERVER_CLIENT_SKIP_UPDATE_CHECK==='1';
+const icon=path.join(__dirname,'icon.png');
 const installer='https://github.com/EasterCompany/e-server-client/releases/latest';
 let config={},win=null,setup=null,tray=null,quitting=false,ready=false,pollTimer=null,auth=null,externalAuth=false;
 let activity=Date.now(),downloads=0,requests=new Set(),failures=0,captureGranted=false,restartOnClosed=false,pendingServer=null,restartingHidden=false;
@@ -25,8 +35,35 @@ if(!app.requestSingleInstanceLock()){app.quit();}else{
  app.whenReady().then(start).catch(error=>{dialog.showErrorBox('e-server could not start',error.message);app.quit();});
 }
 function show(){if(!company?.authorized()){setupWindow();return;}const target=win||setup;if(target){target.show();target.focus();}}
-function publish(next){state={...state,...next,...company?.view(),version:VERSION,server:company?.authorized()?config.server||'':''};if(setup&&!setup.isDestroyed())setup.webContents.send('client:state',state);}
-function accountChanged(){if(!company?.authorized()){win?.hide();publish({phase:'auth',title:'Sign in to Easter Company.',error:''});setupWindow();}else publish({});}
+function publish(next){
+ state={...state,...next,...company?.view(),version:VERSION,server:company?.authorized()?config.server||'':''};
+ if(!setup||setup.isDestroyed())return;
+ setup.webContents.send('client:state',state);
+ // The setup window follows the state between its two documents (loadDocument below). A sign-in
+ // that succeeds asks for the same address the page itself leaves for, so the two agree.
+ loadDocument();
+}
+// WHICH DOCUMENT THE SETUP WINDOW HOLDS, decided in one place (desktop/signin.cjs, documentFor):
+// the site's own account page while nobody is signed in, and this client's own setup surface once
+// an account exists - including one that still has to choose a username - or while a startup
+// update is in flight, because that surface is where its "Try again" and installer controls live.
+// The sign-in page leaves for this app's root the moment it holds an account
+// (site/account/account.mjs, signedIn(): "signedIn() sends the browser to the site root"), and
+// that root is exactly SETUP_URL here, so a signed-in answer arrives at the same document
+// documentFor asks for. `setupRequest` keeps a state broadcast from asking for a load that is
+// already on its way.
+let setupRequest=null;
+function loadDocument(){
+ if(!setup||setup.isDestroyed())return;
+ const want=signin.documentFor({account:company?.view().account,phase:state.phase})==='signin'?signin.SIGNIN_URL:signin.SETUP_URL;
+ if(setupRequest===want||setup.webContents.getURL()===want)return;
+ setupRequest=want;
+ void setup.loadURL(want).catch(()=>{});
+}
+// A STATE WITH NO SENTENCES. The sign-in screen is the site's page now and carries its own
+// framing ("Easter Company account", the overline, the panel), so this state says only which
+// document the window holds. Nothing player-facing was copied out of it.
+function accountChanged(){if(!company?.authorized()){win?.hide();publish({phase:'auth',error:''});setupWindow();}else publish({});}
 function changeServer(){if(!company?.authorized()){setupWindow();return;}publish({phase:'setup',title:'Connect to an e-server',error:''});setupWindow();}
 // ONE SIGN-OUT, BOTH SCOPES (docs/COMPANY_LOGIN.md). The client's OWN half ends FIRST - the
 // memory token cleared, the keyring entry removed and the app back at its own sign-in screen,
@@ -72,16 +109,22 @@ async function initializeCompany(){
 }
 async function afterCompany(){if(!company.authorized())return;publish({phase:'setup',title:'Your e-server.',message:'Connect to your private network, then enter your server HTTPS address.',error:''});if(pendingLink){const target=pendingLink;pendingLink=null;await receiveLink(target,true);}else await connect();}
 async function save(){await fs.mkdir(HOME,{recursive:true,mode:0o700});const tmp=path.join(HOME,'settings-'+crypto.randomUUID()+'.tmp');await fs.writeFile(tmp,JSON.stringify(config),{mode:0o600});await fs.rename(tmp,path.join(HOME,'settings.json'));}
-function local(event){if(!localFrame(event)||event.senderFrame.url!==pathToFileURL(shellFile).href)throw Error('This action is only available in e-server setup.');}
+function local(event){if(!setupFrame(event))throw Error('This action is only available in e-server setup.');}
 function remote(event){company?.require();if(!config.server||!win||event.sender!==win.webContents||!trusted(event,config.server))throw Error('This request did not come from your e-server.');}
 const preferences=(ses)=>({session:ses,preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false,allowRunningInsecureContent:false});
 function setupWindow(){
- if(setup&&!setup.isDestroyed()){setup.show();return setup;}
+ if(setup&&!setup.isDestroyed()){setup.show();loadDocument();return setup;}
  setup=new BrowserWindow({width:680,height:860,minWidth:360,minHeight:500,autoHideMenuBar:true,backgroundColor:'#0d1117',icon,webPreferences:preferences(session.fromPartition('setup'))});
  setup.setMenu(null);setup.setMenuBarVisibility(false);
- setup.loadFile(shellFile);setup.webContents.setWindowOpenHandler(()=>({action:'deny'}));
- setup.webContents.on('will-navigate',(event,url)=>{if(url!==pathToFileURL(shellFile).href)event.preventDefault();});
- setup.on('closed',()=>{setup=null;if(!win&&!quitting)app.quit();});return setup;
+ setup.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+ // The window's two documents and nothing else. The site's page is allowed to strip its own query
+ // string and to leave for this app's root once it is signed in; any other address is refused
+ // rather than opened.
+ setup.webContents.on('will-navigate',(event,url)=>{if(url!==signin.SETUP_URL&&url!==signin.SIGNIN_URL)event.preventDefault();});
+ setup.webContents.on('did-finish-load',()=>{setupRequest=null;});
+ setup.on('closed',()=>{setup=null;setupRequest=null;if(!win&&!quitting)app.quit();});
+ loadDocument();
+ return setup;
 }
 function persistent(){return safeStorage.isEncryptionAvailable()&&(!safeStorage.getSelectedStorageBackend||safeStorage.getSelectedStorageBackend()!=='basic_text');}
 async function connect(){
@@ -192,7 +235,7 @@ function restart(){
  app.relaunch(relaunchOptions({packaged:app.isPackaged,appPath:app.getAppPath(),hidden:restartingHidden}));app.quit();
 }
 async function checkUpdate(startup=false,manual=false){
- if(fixture||!app.isPackaged)return;
+ if(fixture||skipUpdateCheck||!app.isPackaged)return;
  try{
   const latest=await probe();
   if(updater.compare(latest,VERSION)>0){
@@ -217,10 +260,21 @@ async function start(){
  if(fixture)config.server=serverOrigin(fixture,{development:true});
  if(app.isPackaged)app.setAsDefaultProtocolClient('e-server');
  Menu.setApplicationMenu(null);
+ // Before any window: the private scheme that serves the site's sign-in page, on the session the
+ // setup window runs in (desktop/signin.cjs).
+ signin.install(session.fromPartition('setup'));
  try{tray=new Tray(icon);tray.setToolTip('e-server');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open e-server',click:show},{label:'Change server…',click:changeServer},{label:'Sign out of Easter Company',click:()=>void signOutCompany()},{type:'separator'},{label:'Cancel sign-in',click:()=>{company?.cancel();void cancelSignIn();}},{label:'Check for updates',click:()=>void checkUpdate(false,true)},{label:'Restart to apply update',click:()=>void applyStaged(true)},{type:'separator'},{label:'Quit',click:()=>{quitting=true;app.quit();}}]));tray.on('click',show);}catch{}
  ipcMain.handle('client:state',event=>{local(event);return state;});
  ipcMain.handle('client:connect',async(event,value)=>{local(event);company.require();const origin=serverOrigin(value,{development});if(win){const choice=await dialog.showMessageBox(win,{buttons:['Cancel','Switch server'],defaultId:0,cancelId:0,message:'Switch your e-server connection?',detail:'Finish transfers and save your work first.'});if(choice.response!==1)return;pendingServer=origin;quitting=true;restartOnClosed=true;win.close();}else{config.server=origin;await save();await connect();}});
- ipcMain.handle('client:retry',async event=>{local(event);company.require();if(state.phase==='update-error')await checkUpdate(true);else if(win){win.reload();setup.close();win.show();}else await connect();});
+ // A FAILED STARTUP UPDATE KEEPS ITS OWN SURFACE, and this is what gets out of it. The check needs
+ // no account (the setup surface asks for one before it can offer a server), and a check that now
+ // answers hands the window straight back to the sign-in page it was covering.
+ ipcMain.handle('client:retry',async event=>{
+  local(event);
+  if(state.phase==='update-error'){await checkUpdate(true);if(!company?.authorized())publish({phase:'auth'});return;}
+  company.require();
+  if(win){win.reload();setup.close();win.show();}else await connect();
+ });
  ipcMain.handle('client:installer',event=>{local(event);return shell.openExternal(installer);});
  ipcMain.handle('client:external',(event,value)=>{remote(event);return openExternal(value);});
  ipcMain.handle('client:provider',(event,value)=>{remote(event);externalAuth=true;return openExternal(value);});
@@ -234,11 +288,30 @@ async function start(){
  ipcMain.on('client:activity',event=>{try{remote(event);activity=Date.now();}catch{}});
  ipcMain.on('client:signin-finished',event=>{try{remote(event);externalAuth=false;}catch{}});
  const accounts=await initializeCompany();
- ipcMain.handle('company:login',async(event,identifier,password)=>{local(event);await company.login(identifier,password);await afterCompany();return company.view();});
- ipcMain.handle('company:provider',async(event,provider)=>{local(event);if(!['microsoft','google','steam','discord'].includes(provider))throw Error('Choose a sign-in provider.');await company.signIn(provider);await afterCompany();return company.view();});
- ipcMain.handle('company:providers',event=>{local(event);return accounts.providers();});
+ // THE SIGN-IN PAGE'S THREE ANSWERS (desktop/signin-adapter.mjs). The site's account page asks its
+ // seam for an answer, never for an exception, so each of these resolves `{ok:true}` or
+ // `{ok:false,error}` - and `error` is the main process's own sentence, which for a sign-in is the
+ // account service's `message` (the same sentence the site's own browser seam draws) and for a
+ // cancellation is the launcher's one spelling of it (desktop/company.cjs). Nothing here invents
+ // copy, and nothing here can be reached except from a frame this process served itself (local()).
+ // The answer is the SIGN-IN's outcome, and only the sign-in's: the step after it (opening the
+ // server, honouring a deep link) runs once the session exists and its failure cannot make the
+ // page say the sign-in failed when it did not.
+ ipcMain.handle('signin:login',async(event,identifier,secret)=>{
+  local(event);
+  try{await company.login(identifier,secret);}catch(error){return {ok:false,error:error.message};}
+  await afterCompany().catch(()=>{});
+  return {ok:true};
+ });
+ ipcMain.handle('signin:provider',async(event,provider)=>{
+  local(event);
+  if(!['microsoft','google','steam','discord'].includes(provider))return {ok:false,error:'Choose a sign-in provider.'};
+  try{await company.signIn(provider);}catch(error){return {ok:false,error:error.message};}
+  await afterCompany().catch(()=>{});
+  return {ok:true};
+ });
+ ipcMain.handle('signin:providers',async event=>{local(event);try{const found=await accounts.providers();return {ok:true,providers:Array.isArray(found?.providers)?found.providers:[]};}catch{return {ok:false};}});
  ipcMain.handle('company:finish',async(event,username,password)=>{local(event);await company.finish(username,password);await afterCompany();return company.view();});
- ipcMain.handle('company:cancel',event=>{local(event);company.cancel();});
  ipcMain.handle('company:signout',event=>{local(event);return signOutCompany();});
  await company.restore();
  ready=true;const link=process.argv.find(v=>v.startsWith('e-server:'));

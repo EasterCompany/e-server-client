@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const {serverOrigin,serverRequest,externalURL,connectionLink,trusted,updateLevel}=require('../desktop/security.cjs');
+const {serverOrigin,serverRequest,externalURL,connectionLink,trusted,setupFrame,updateLevel}=require('../desktop/security.cjs');
 test('native UI hint reaches this server and harness TLS ports only',()=>{
  for(const url of ['https://server.example/','https://server.example:8443/api/','wss://server.example:8443/socket'])assert.equal(serverRequest(url,'https://server.example'),true);
  for(const url of ['https://server.example.evil/','https://other.example/','http://server.example/','ws://server.example/','file:///etc/passwd','https://user:pass@server.example/'])assert.equal(serverRequest(url,'https://server.example'),false);
@@ -24,6 +24,22 @@ test('only the configured main frame can call native capabilities',()=>{
  assert.equal(trusted({sender,senderFrame:frame},'https://server.example'),true);
  assert.equal(trusted({sender,senderFrame:{url:frame.url}},'https://server.example'),false);
  assert.equal(trusted({sender,senderFrame:frame},'https://other.example'),false);
+});
+test('the client own documents are the only frames that reach the setup commands',()=>{
+ // The sign-in page and the client's setup surface are the only things on this scheme, and only
+ // this process answers it (desktop/signin.cjs). Everything else - a connected server's https
+ // page, a file:// document, a subframe of our own page - is refused.
+ const frame=url=>({url}),allowed=url=>{const only=frame(url);return setupFrame({sender:{mainFrame:only},senderFrame:only});};
+ assert.equal(allowed('e-server-signin://company/account/'),true);
+ assert.equal(allowed('e-server-signin://company/'),true);
+ for(const url of ['https://server.example/','https://server.example/account','file:///tmp/desktop/shell.html',
+                   'about:blank','data:text/html,<p>hi','e-server-signin://other/account/'])assert.equal(allowed(url),false,url);
+ // A subframe of the client's own page does not answer the setup commands either.
+ const main=frame('e-server-signin://company/account/');
+ assert.equal(setupFrame({sender:{mainFrame:main},senderFrame:main}),true);
+ // A subframe is a different frame object, whatever its url: identity decides, as it does for the
+ // server window's own guard.
+ assert.equal(setupFrame({sender:{mainFrame:main},senderFrame:frame('e-server-signin://company/account/')}),false);
 });
 test('version policies preserve patch state, clear minor cache and major sessions',()=>{
  assert.equal(updateLevel('1.0.0','1.0.1'),'patch');assert.equal(updateLevel('1.0.1','1.1.0'),'minor');assert.equal(updateLevel('1.1.0','2.0.0'),'major');

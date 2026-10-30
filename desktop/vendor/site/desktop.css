@@ -1,0 +1,434 @@
+/* Desktop-only application shell. The website keeps its own presentation. */
+.desktop-mode {--app-panel:#11252d;--app-border:#ffffff24;--app-muted:#a8b9b4;--app-gold:#e4c486}
+.desktop-mode [hidden]{display:none!important}
+.desktop-mode button:focus-visible,.desktop-mode a:focus-visible,.desktop-mode summary:focus-visible,.desktop-mode input:focus-visible,.desktop-mode select:focus-visible{outline:2px solid var(--app-gold);outline-offset:3px}
+.desktop-mode button:disabled{cursor:default;opacity:.55}
+.desktop-mode .site-header{width:100%;height:64px;padding:0 32px;background:#0e222bea;border-bottom:1px solid var(--app-border)}
+.desktop-mode .site-header nav .desktop-account-nav{margin-left:16px;padding:6px 8px 6px 12px;gap:12px;max-width:240px}
+.desktop-account-nav span{overflow:hidden;text-overflow:ellipsis}
+.desktop-account-nav canvas{width:32px;height:32px;image-rendering:pixelated;border-radius:4px;flex:none}
+.desktop-mode body.home{height:100dvh;min-height:0;overflow:hidden}
+/* The top padding carries the room the fixed failure notice needs. site/desktop.js measures it
+   and publishes it as --launcher-notice-space (0 while no notice is showing), so the notice
+   always reads above the hero card instead of covering its crest and heading. */
+.desktop-mode body.home>.home-content{flex:1;min-height:0;display:grid;align-items:center;width:100%;padding:calc(24px + var(--launcher-notice-space,0px)) 48px 90px;margin:0}
+.desktop-mode .home .home-hero{display:block;min-height:0;width:min(520px,100%);margin:0}
+.desktop-mode .hero-copy{max-height:calc(100dvh - 208px);overflow:auto;animation:none;text-align:left;padding:28px;background:#11252df2;border:1px solid var(--app-border);border-radius:14px;box-shadow:0 12px 40px #0003}
+.desktop-home-heading{display:flex;align-items:center;gap:18px;margin-bottom:28px}
+.desktop-mode .crest-frame{width:68px;flex:none;transform:none;animation:none;padding:0;border:1px solid var(--app-border);border-radius:10px;box-shadow:none;background:none}
+.desktop-mode .crest-frame img{border-radius:9px}.desktop-mode .crest-frame::after{display:none}
+.desktop-mode .hero-copy .eyebrow{display:block;margin:0;font:600 19px/1.4 Inter,system-ui,sans-serif;letter-spacing:0;text-transform:none;color:#f1e6ce}
+.desktop-mode .hero-copy .eyebrow span{display:none}
+.desktop-edition{margin:4px 0 0;color:var(--app-muted);font-size:12px}
+.desktop-mode .hero-actions{gap:12px;flex-wrap:nowrap;align-items:stretch}
+.desktop-mode .launcher-control{flex:1;min-width:0;box-shadow:none}
+.desktop-mode .launcher-control .launcher-button{width:100%;min-width:0;max-width:none;min-height:64px;padding:13px 18px;border:1px solid #e4c486;border-radius:8px;box-shadow:none;background:#e4c486;font-size:14px;gap:12px}
+.desktop-mode .launcher-button:hover{background:#f0d69f;box-shadow:none}
+.desktop-mode .launcher-button>span{white-space:normal}
+.desktop-mode .launcher-button small{letter-spacing:0;text-transform:none;font-size:10px}
+.desktop-mode .hero-actions .desktop-settings-button{padding:12px 16px;border:1px solid var(--app-border);border-radius:8px;background:transparent;box-shadow:none;color:#e2e8e1;font:500 12px/1.3 system-ui;cursor:pointer}
+.desktop-mode .hero-actions .desktop-settings-button:hover{background:#ffffff09;box-shadow:none}
+.desktop-mode .home-footer{flex:none;width:100%;padding:16px 32px;font-size:11px;letter-spacing:0;color:#afbfba}
+.desktop-mode .home-footer>span:last-child{font:inherit;letter-spacing:0}
+/* The game server's row, under the hero action: a small LED and one status line. The words
+   carry the state and the LED repeats it, so the tone is decided by the main process
+   (`game.tone`) and only drawn here. It shows whenever the launcher is at the Play Now
+   stage with a game state, an online server included: 'Server Online, 2 active players' is
+   what the row exists for. The LED is a filled dot for every state the launcher knows; for
+   `pending` — nothing asked yet — it is a rotating ring, so the row never draws the red of
+   a failed read while the answer is still on its way (Owen, 2026-10-23). */
+.desktop-game-status{display:flex;align-items:center;gap:8px;margin:16px 0 0;color:var(--app-muted);font-size:11px;line-height:1.7}
+.desktop-game-led{flex:none;width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px #ffffff0d}
+.desktop-game-line{min-width:0;overflow-wrap:anywhere}
+.desktop-game-status[data-tone=online]{color:#8fd694}
+.desktop-game-status[data-tone=asleep]{color:#e4c486}
+.desktop-game-status[data-tone=asleep] .desktop-game-led{opacity:.55}
+.desktop-game-status[data-tone=starting],.desktop-game-status[data-tone=stopping]{color:#e4c486}
+.desktop-game-status[data-tone=starting] .desktop-game-led{animation:game-led-pulse 1.6s ease-in-out infinite}
+.desktop-game-status[data-tone=offline]{color:#e08b7f}
+/* Waiting for the first answer: muted, never the offline red and never the online green. The
+   same 8px box, border and radius, so nothing moves when the tone changes: only the filled
+   background becomes a 1.5px currentColor ring with one quadrant transparent, and that ring
+   turns. */
+.desktop-game-status[data-tone=pending]{color:var(--app-muted)}
+.desktop-game-status[data-tone=pending] .desktop-game-led{background:none;border:1.5px solid currentColor;border-top-color:transparent;box-shadow:none;animation:game-led-spin .9s linear infinite}
+@keyframes game-led-pulse{0%,100%{opacity:.3}50%{opacity:1}}
+@keyframes game-led-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.desktop-game-status[data-tone=starting] .desktop-game-led{animation:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){.desktop-game-status[data-tone=pending] .desktop-game-led{animation:none}}
+.desktop-install-details{display:grid;gap:12px;margin-top:24px;padding-top:18px;border-top:1px solid var(--app-border)}
+.desktop-folder{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px 12px}
+.desktop-folder>span{color:var(--app-muted);font-size:11px}
+.desktop-folder strong{grid-column:1;min-width:0;font:11px/1.5 ui-monospace,monospace;color:#d3ded5;overflow-wrap:anywhere}
+.desktop-folder-button{grid-column:2;grid-row:1/3;border:1px solid var(--app-border);border-radius:6px;padding:9px 11px;color:#dfe8e2;background:transparent;font-size:11px;cursor:pointer}
+.desktop-install-default:empty{display:none}.desktop-install-default{grid-column:1/-1;color:var(--app-muted);font-size:10px;overflow-wrap:anywhere}
+.desktop-install-graphics{margin:0;color:var(--app-muted);font-size:11px;line-height:1.6}
+.hero-graphics{margin-top:24px;padding-top:18px;border-top:1px solid var(--app-border)}
+.hero-graphics-switch{display:flex;align-items:center;justify-content:space-between;gap:18px;position:relative;cursor:pointer}
+.hero-graphics-text{min-width:0}.hero-graphics-text strong{font-size:12px;font-weight:500;color:#dbe4db}
+.hero-graphics-switch input{position:absolute;right:0;opacity:0;width:38px;height:22px;margin:0}
+.hero-graphics-track{pointer-events:none;flex:none;position:relative;width:38px;height:22px;border-radius:12px;background:#0a1b22;border:1px solid #71857d}
+.hero-graphics-track i{position:absolute;left:3px;top:3px;width:14px;height:14px;background:#a8b9b4;border-radius:50%}
+.hero-graphics-switch input:checked+.hero-graphics-track{background:var(--app-gold);border-color:var(--app-gold)}
+.hero-graphics-switch input:checked+.hero-graphics-track i{transform:translateX(16px);background:#17313a}
+.hero-graphics-switch input:focus-visible+.hero-graphics-track{outline:2px solid var(--app-gold);outline-offset:3px}
+.hero-graphics-switch input:disabled+.hero-graphics-track{opacity:.5}
+.desktop-graphics-details{margin-top:12px;color:var(--app-muted);font-size:11px}
+.desktop-graphics-details summary{cursor:pointer;width:fit-content}
+.desktop-graphics-note{font-size:11px;line-height:1.7;margin:10px 0 0}
+.desktop-install-error,.desktop-graphics-error,.desktop-page-notice,.desktop-auth-error{padding:12px 14px;border:1px solid #e39a8055;border-radius:7px;background:#382924;color:#f6c6b4;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+/* Microsoft's own answer about the account's email address is a notice, not a failure: it is
+   said in the launcher's gold rather than in the error red, and it keeps the same box so the
+   sign-in dialog reads as one column. */
+.desktop-auth-notice{margin:16px 0 0;padding:12px 14px;border:1px solid #e4c4864d;border-left:3px solid var(--app-gold);border-radius:7px;background:#132a31;color:#eadfc6;font:12px/1.7 system-ui;text-align:left;overflow-wrap:anywhere}
+.desktop-page-notice button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;padding:0;margin-left:16px;border-radius:4px;font-size:20px;line-height:1;color:inherit}.desktop-page-notice{display:flex;align-items:center;justify-content:space-between;position:fixed;z-index:80;top:80px;left:50%;transform:translateX(-50%);width:min(600px,calc(100% - 32px));box-shadow:0 8px 24px #0004}
+#desktop-launcher,#desktop-signin{width:min(500px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:28px;border:1px solid #ffffff30;border-radius:12px;background:var(--app-panel);color:#e5e9df;box-shadow:0 18px 65px #0007}
+#desktop-launcher::backdrop,#desktop-signin::backdrop{background:#06131bc9;backdrop-filter:blur(5px)}
+#desktop-launcher h2,#desktop-signin h2{margin:0 40px 24px 0;font:600 22px/1.3 Inter,system-ui,sans-serif;letter-spacing:-.02em}
+.desktop-mode .dialog-close{display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1;right:14px;top:14px;border-radius:6px}
+.desktop-mode .dialog-close:hover{background:#ffffff0b}
+.desktop-settings{font-size:12px}
+.desktop-settings label:not(.desktop-preference){display:block;margin:0 0 18px;color:#d1ded5;line-height:1.5}
+.desktop-settings input:not([type=range]):not([type=checkbox]),.desktop-settings select{display:block;width:100%;min-width:0;padding:10px 12px;background:#0b1d25;color:#e5e9df;border:1px solid #ffffff28;border-radius:6px;font:12px/1.5 system-ui;margin-top:8px}
+.desktop-settings select option{background:#11252d}
+.desktop-settings small{display:block;color:var(--app-muted);font-size:11px;margin-top:6px;line-height:1.6}
+.desktop-settings .desktop-preference{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:24px 0;padding:10px 0;cursor:pointer;line-height:1.4}
+.desktop-preference input[type=checkbox]{appearance:none;flex:none;width:38px;height:22px;border-radius:12px;border:1px solid #71857d;background:#0b1d25;position:relative;margin:0;cursor:pointer}
+.desktop-preference input::after{content:'';position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#a8b9b4}
+.desktop-preference input:checked{background:var(--app-gold);border-color:var(--app-gold)}
+.desktop-preference input:checked::after{left:19px;background:#17313a}
+/* The two game shortcuts are their own small group under the launch behaviours: one
+   preference each, and the line under them states whether the files are really there. */
+.desktop-shortcuts{margin:0 0 20px;padding-top:8px;border-top:1px solid var(--app-border)}
+.desktop-settings .desktop-shortcuts .desktop-preference{margin:14px 0;padding:6px 0}
+.desktop-shortcuts-note{margin:6px 0 0;color:var(--app-muted);font-size:11px;line-height:1.6}
+.desktop-advanced{border-top:1px solid var(--app-border);border-bottom:1px solid var(--app-border);padding:14px 0;margin:0 0 20px}
+.desktop-advanced summary{cursor:pointer;color:#c7d4cb}
+.desktop-advanced-note{font-size:11px;margin:14px 0!important}
+.desktop-settings output#memory-value{float:right;color:var(--app-gold)}
+.desktop-settings input[type=range]{width:100%;accent-color:var(--app-gold);margin:12px 0 0}
+.java-field{display:flex;gap:8px;align-items:stretch}
+.java-field button{margin-top:8px;padding:0 12px;border:1px solid var(--app-border);border-radius:6px;font-size:11px}
+.desktop-save-row{display:flex;align-items:center;gap:16px}
+.desktop-save-row button{padding:11px 16px;background:var(--app-gold);border:0;border-radius:6px;color:#14262e;font-size:12px;font-weight:600;cursor:pointer}
+.desktop-settings-result{color:#c6d8c4;font-size:12px}
+.desktop-utilities{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--app-border);padding-top:16px;margin-top:24px}
+.desktop-utilities .text-link{font-size:11px;padding:0}.desktop-version{font-size:10px;color:var(--app-muted)}
+#desktop-signin{width:min(440px,calc(100vw - 32px));text-align:center;padding:32px}
+#desktop-signin h2{margin:8px 16px 24px;font-size:21px}
+.desktop-auth-wait{padding:24px 0}.desktop-device-instruction{font-size:13px;margin:0 0 18px}
+.desktop-device-instruction:empty{display:none}
+.desktop-mode .desktop-device-action{width:100%;min-width:0;min-height:48px;margin:24px 0 12px;padding:12px;background:var(--app-gold);box-shadow:none;font-size:13px}
+#desktop-signin .desktop-provider{font-size:11px;line-height:1.6;margin:0 0 16px}
+#desktop-signin [data-cancel]{font-size:12px}
+/* THE SAME DROP DOWN AS E-SERVER'S, in size, type and rhythm (api/page_utils.py
+   USER_MENU_CSS: a 4px inset, 10px radius, .85rem type and 8px/10px rows). Owen, 2026-10-28:
+   "e-server also has a better more compact user drop down menu, please update the other ones
+   to use the same style of drop down". min-width rather than a fixed width so a short list
+   stays narrow the way it does there; max-width keeps the long ones off the viewport edge.
+   position:fixed is kept because this menu is placed by JS against the button. */
+.desktop-profile-menu{position:fixed;inset:auto;margin:0;min-width:200px;max-width:min(280px,calc(100vw - 24px));max-height:calc(100dvh - 90px);overflow:auto;padding:4px;border:1px solid #ffffff30;border-radius:10px;background:var(--app-panel);color:#e5e9df;box-shadow:0 12px 32px #0005;font-size:.85rem}
+.desktop-profile-heading{padding:8px 10px;margin:0;font-size:.78rem;line-height:1.5;color:var(--app-muted);overflow-wrap:anywhere}
+/* The account view leads with the name the player is called and keeps the username as a
+   second, smaller sign-in line underneath it. Both wrap rather than overflow, because a
+   display name is the player's own text and may be up to 64 characters. */
+.desktop-profile-heading.desktop-account{display:grid;gap:2px;padding-bottom:8px}
+.desktop-account-name{font:600 .85rem/1.3 Inter,system-ui,sans-serif;color:#e5e9df;overflow-wrap:anywhere}
+.desktop-account-name[hidden],.desktop-account-signin[hidden]{display:none}
+.desktop-account-signin{font-size:.78rem;line-height:1.5;color:var(--app-muted);overflow-wrap:anywhere}
+.desktop-profile-menu button{display:block;width:100%;margin-top:4px;text-align:left;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;font-size:.85rem;line-height:1.3;cursor:pointer}
+.desktop-profile-menu button:hover,.desktop-profile-menu button:focus-visible{background:#ffffff0a}
+.launcher-bar{position:fixed;left:0;right:0;bottom:var(--launcher-bar-offset,16px);z-index:60;width:min(760px,calc(100vw - 32px));margin:0 auto;border:1px solid #ffffff30;border-radius:10px;background:#11252dfc;color:#e5e9df;box-shadow:0 10px 30px #0005;font-size:12px}
+.launcher-bar-body{display:flex;align-items:center;gap:20px;padding:16px 50px 16px 18px}
+.launcher-bar-info{flex:1;min-width:0}.launcher-bar-label{margin:0;font-size:12px;font-weight:600;overflow-wrap:anywhere}
+.launcher-bar-meta{margin:5px 0 0;font-size:10px;color:var(--app-muted);overflow-wrap:anywhere}
+.launcher-bar-track{flex:0 0 30%;height:6px;border-radius:4px;background:#ffffff18;overflow:hidden}
+.launcher-bar-track i{display:block;height:100%;width:0;background:var(--app-gold)}
+.launcher-bar.is-indeterminate .launcher-bar-track i{width:34%;animation:launcher-bar-sweep 1.6s ease-in-out infinite}
+.launcher-bar-actions{display:flex;gap:10px;flex:none}
+.launcher-bar-button{min-height:34px;padding:0 14px;border:1px solid var(--app-border);border-radius:6px;background:transparent;color:#ead5ab;font-size:11px;font-weight:600;cursor:pointer}
+.launcher-bar-button:hover{background:#ffffff09}
+.launcher-bar-tab{position:absolute;top:10px;right:10px;display:grid;place-items:center;width:26px;height:26px;padding:0;border:1px solid var(--app-border);border-radius:6px;background:transparent;color:#ead5ab;font-size:13px;cursor:pointer}
+.launcher-bar-tab-text{display:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.launcher-bar.is-minimised{width:auto;max-width:min(340px,calc(100vw - 32px));left:auto;right:24px;margin:0}
+.launcher-bar.is-minimised .launcher-bar-body{display:none}
+.launcher-bar.is-minimised .launcher-bar-tab{position:static;display:flex;align-items:center;gap:10px;width:auto;height:auto;max-width:100%;padding:11px 16px;border:0;font-size:11px}
+.launcher-bar.is-minimised .launcher-bar-tab-icon{transform:rotate(180deg)}
+.launcher-bar.is-minimised .launcher-bar-tab-text{display:block}
+@keyframes launcher-bar-sweep{from{transform:translateX(-110%)}to{transform:translateX(320%)}}
+@media(prefers-reduced-motion:reduce){.launcher-bar.is-indeterminate .launcher-bar-track i{animation:none}}
+@media(max-height:700px){.desktop-mode body.home>.home-content{padding-top:calc(16px + var(--launcher-notice-space,0px));padding-bottom:76px}.desktop-mode .hero-copy{padding:22px}.desktop-home-heading{margin-bottom:20px}.desktop-install-details,.hero-graphics{margin-top:18px;padding-top:14px}.desktop-game-status{margin-top:12px}
+ /* The settings dialog carries four preferences and the shortcut state now, so on a short
+    window it closes up its own spacing rather than scrolling. */
+ #desktop-launcher{padding:22px}#desktop-launcher h2{margin-bottom:18px}
+ .desktop-settings .desktop-preference{margin:14px 0;padding:6px 0}
+ .desktop-settings .desktop-shortcuts .desktop-preference{margin:8px 0;padding:4px 0}
+ .desktop-shortcuts{margin-bottom:12px;padding-top:6px}
+ .desktop-advanced{padding:10px 0;margin-bottom:12px}
+ .desktop-utilities{padding-top:12px;margin-top:14px}}
+@media(max-width:720px){
+ .desktop-mode .site-header{padding:0 16px}.desktop-mode .site-header nav .desktop-account-nav{margin-left:4px;max-width:160px}
+ .desktop-mode .hero-copy{max-height:none;overflow:visible}
+ .desktop-mode body.home{overflow-y:auto}
+ .desktop-mode body.home>.home-content{padding:calc(24px + var(--launcher-notice-space,0px)) 20px 100px}
+ .desktop-mode .home .home-hero{margin:auto}.desktop-mode .home-footer{padding:16px 20px}
+ .launcher-bar-body{flex-wrap:wrap;gap:12px;padding:14px 46px 14px 14px}.launcher-bar-track{flex-basis:100%;order:3}
+}
+@media(max-width:420px){
+ .desktop-mode .site-header nav>a,.desktop-mode .site-header nav>button{padding:10px 8px;font-size:11px}
+ .desktop-mode .site-header nav .desktop-account-nav{gap:6px;max-width:140px;padding:6px}
+ .desktop-account-nav canvas{width:24px;height:24px}
+ .desktop-mode .hero-copy{padding:20px}.desktop-mode .hero-actions{flex-wrap:wrap}
+ .desktop-mode .hero-copy .eyebrow{font-size:16px}.desktop-mode .crest-frame{width:56px}
+ .desktop-folder{grid-template-columns:1fr}.desktop-folder-button{grid-column:1;grid-row:auto;justify-self:start;margin-top:4px}
+ #desktop-launcher,#desktop-signin{padding:24px}
+ .desktop-utilities{align-items:flex-start;flex-direction:column;gap:12px}
+}
+
+/* Required updates precede Home; this modal has no dismiss or skip action. */
+#desktop-update{outline:0;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;padding:32px;border:0;border-radius:0;background:#0e222b;color:#e5e9df;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:20px}
+#desktop-update:not([open]){display:none}
+#desktop-update::backdrop{background:#0e222b}
+#desktop-update h2{font:600 22px/1.4 system-ui;margin:0}
+#desktop-update p{max-width:520px;margin:0;font-size:13px;color:#b8c8c1}
+.desktop-update-spinner{width:30px;height:30px;border:2px solid #ffffff20;border-top-color:#e4c486;border-radius:50%;animation:update-spin 1s linear infinite}
+#desktop-update.is-blocked .desktop-update-spinner{display:none}
+.desktop-update-progress{width:min(360px,100%);height:6px;border-radius:4px;background:#ffffff20;overflow:hidden}
+.desktop-update-progress i{display:block;height:100%;background:#e4c486}
+.desktop-update-actions{display:flex;gap:12px}
+.desktop-update-actions button{padding:11px 18px;background:#e4c486;color:#14262e;border:0;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer}
+@keyframes update-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.desktop-update-spinner{animation:none;border-color:#e4c486}}
+
+.desktop-access{margin:20px 0 0;padding-top:16px;border-top:1px solid var(--app-border)}
+.desktop-access p{margin:0;color:var(--app-muted);font-size:12px;line-height:1.7}
+.desktop-access>div{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+.desktop-access button{border:1px solid var(--app-border);border-radius:6px;background:transparent;color:#e4d7b8;padding:9px 12px;font-size:11px;cursor:pointer}
+.desktop-access button:hover{background:#ffffff09}
+
+.desktop-company-dialog{width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:28px;border:1px solid var(--app-border);border-radius:12px;background:var(--app-panel);color:#e5e9df;box-shadow:0 18px 65px #0007}
+.desktop-company-dialog::backdrop{background:#06131bc9;backdrop-filter:blur(5px)}
+.desktop-company-dialog h2{margin:0 32px 12px 0;font:600 22px/1.3 Inter,system-ui,sans-serif}.desktop-company-dialog p{font-size:12px;line-height:1.6;color:var(--app-muted)}
+.desktop-company-dialog label{display:block;font-size:12px;margin:16px 0;color:#d1ded5}.desktop-company-dialog input:not([type=checkbox]):not([type=radio]){display:block;width:100%;padding:10px 12px;margin-top:7px;border:1px solid #ffffff28;border-radius:6px;background:#0b1d25;color:#e5e9df;font:13px/1.5 system-ui}
+.desktop-company-dialog .company-microsoft,.desktop-company-dialog .company-submit{width:100%;padding:12px;border:1px solid var(--app-gold);border-radius:6px;background:var(--app-gold);color:#11252d;font:600 13px/1.4 system-ui;cursor:pointer}.desktop-company-dialog .company-microsoft{margin-top:10px}
+.desktop-company-dialog .company-provider-note{font-size:11px}.desktop-company-dialog .company-step{margin:0 0 6px;font:600 10px/1.4 system-ui;letter-spacing:.08em;text-transform:uppercase;color:var(--app-gold)}
+.desktop-company-dialog .company-no-reset{margin:14px 0 0;font-size:11px}.desktop-company-dialog .company-error{color:#f4b6a6}.desktop-company-dialog .company-username{color:var(--app-gold);font-size:15px}.desktop-company-dialog .company-show{display:flex;align-items:center;gap:8px}.company-show input{accent-color:var(--app-gold)}
+/* The identity conflict is three lines rather than one paragraph: the sentence, what did not
+   change, and the way out. They share the refusal colour and the slot's own spacing, so the
+   dialog reads as one answer and each part is separately scannable. */
+.desktop-company-dialog .company-error p{margin:0;color:inherit}
+.desktop-company-dialog .company-error p+p{margin-top:9px}
+/* The launcher's own minimum window is 800x600. Since provider sign-in put Google, Steam and
+   Discord above the provider note, the chooser's 621px of content is taller than the 566px box
+   that window gives it, so the box scrolls there with or without a refusal and nothing needs
+   this rule to stay reachable (doc/launcher-states.md, *A chooser may scroll when the window is
+   short*). It is kept for the smaller reason it is worth: on a short window,
+   the same breakpoint the settings dialog closes its own spacing up at, a dialog carrying a
+   refusal trims its bottom inset from 28px to 16px, which is 12px less travel to the refusal
+   and to the controls under it. A chooser with no refusal keeps its full padding, and at a
+   window tall enough to hold the dialog nothing changes at all. */
+@media(max-height:700px){.desktop-company-dialog:has(.company-error:not([hidden])){padding-bottom:16px}}
+
+/* Verified emails. One address per row, the selected one marked, and the copy that says
+   only that address is a login key. The rows wrap rather than scroll sideways, so a long
+   address never widens the dialog on a small window. */
+.desktop-company-dialog .company-emails{display:grid;gap:6px;margin:0 0 4px}
+.desktop-company-dialog .company-emails[hidden]{display:none}
+.desktop-company-dialog .company-email{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"mark address" "mark meta";align-items:start;column-gap:10px;margin:0;padding:10px 12px;border:1px solid #ffffff1f;border-radius:7px;background:#0b1d25;cursor:pointer}
+.desktop-company-dialog .company-email:hover{border-color:#ffffff38}
+.desktop-company-dialog .company-email:has(input:checked){border-color:var(--app-gold);background:#12252c}
+.desktop-company-dialog .company-email input{grid-area:mark;width:16px;height:16px;margin:1px 0 0;padding:0;accent-color:var(--app-gold)}
+.desktop-company-dialog .company-email-address{grid-area:address;font-size:13px;line-height:1.4;color:#e5e9df;overflow-wrap:anywhere}
+.desktop-company-dialog .company-email-meta{grid-area:meta;font-size:11px;line-height:1.5;color:var(--app-muted)}
+.desktop-company-dialog .company-emails-empty,.desktop-company-dialog .company-emails-unset,.desktop-company-dialog .company-emails-loading{margin:0 0 10px;font-size:12px;line-height:1.6}
+.desktop-company-dialog .company-status{margin:10px 0 0;font-size:11px;line-height:1.6;color:var(--app-gold)}
+.desktop-company-dialog .company-email-actions{display:grid;gap:2px;margin-top:16px}
+.desktop-company-dialog .company-clear{display:block;margin:10px auto 0;font-size:11px}
+/* My Profile carries the sections the menu no longer has entries for: the verified emails and
+   the password. One heading each, and the sentence under it says what the section does. */
+.desktop-company-dialog h3{margin:20px 0 0;font:600 13px/1.4 system-ui;color:#e5e9df}
+.desktop-company-dialog .company-section-note{margin:6px 0 10px;font-size:11px}
+
+/* The map is a full-bleed chart, so there is no page flow for the failure notice's room to be
+   reserved on: the docked controls move instead. site/desktop.js measures how far the strip the
+   band actually reaches has to drop and publishes it as --launcher-notice-space (0 otherwise, and
+   never measured from the location pill, which is a pointer-events:none output). margin-top is
+   used rather than top so each dock keeps the offset its own stylesheet gave it at every width,
+   and rather than a transform so the location pill keeps its centring. */
+.desktop-mode .atlas-stage>.compass,
+.desktop-mode .atlas-stage>.map-key,
+.desktop-mode .atlas-stage>.map-navigation,
+.desktop-mode .atlas-stage>.map-drawing,
+.desktop-mode .atlas-stage>.map-location{margin-top:var(--launcher-notice-space,0px)}
+/* With the strip moved down, an open key would otherwise grow under whatever is docked at the bottom
+   of the chart: its own footer, and the launcher's sticky bar, which floats on that footer's offset
+   and so has a top edge 76 to 94px above the footer's. The room left above the first of those edges
+   is measured and published as --launcher-notice-key-space, so the legend scrolls inside the key
+   rather than sliding behind either of them. Unset — no sentence on screen, or a key whose content
+   already fits above every edge — leaves the key laid out exactly as it always was. */
+.desktop-mode .atlas .key-content{max-height:var(--launcher-notice-key-space,none);overflow:auto;overscroll-behavior:contain}
+
+/* Provider choices share visible controls and remain usable on short screens. */
+.desktop-company-dialog .company-provider{display:block;width:100%;margin-top:8px;padding:12px;border:1px solid #ffffff38;border-radius:6px;background:#122b34;color:#e5e9df;font:600 13px/1.4 system-ui;cursor:pointer}
+.desktop-company-dialog button:disabled{opacity:.5;cursor:default}
+.desktop-company-dialog button:focus-visible{outline:2px solid var(--app-gold);outline-offset:3px}
+#company-profile form button,#company-profile [data-open-emails],.company-picture-actions button,.company-provider-link button{min-height:40px;padding:9px 13px;border:1px solid #ffffff38;border-radius:6px;background:#17333c;color:#e5e9df;font:600 12px/1.4 system-ui;cursor:pointer}
+#company-profile form button{width:100%;border-color:var(--app-gold)}
+.company-picture-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.company-provider-links{display:grid;gap:8px}
+.company-provider-link{display:grid;gap:3px;padding:8px 0;border-bottom:1px solid #ffffff18;font:13px/1.5 system-ui}
+.company-provider-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.company-provider-name{min-width:0;overflow-wrap:anywhere}
+.company-provider-head button{flex-shrink:0}
+/* What a linked provider itself holds: one line per value that exists. The block is drawn only
+   around lines that are there, so a provider with nothing known adds no space and no rule. */
+.company-provider-details{display:grid;gap:2px;margin:2px 0 2px;padding-left:10px;border-left:2px solid #ffffff20}
+.company-provider-detail{margin:0;font:12px/1.5 system-ui;color:var(--app-muted);overflow-wrap:anywhere}
+.company-provider-detail-label{color:#8fa39d}
+.company-provider-detail-value{color:#e5e9df}
+
+/* API waits stay beside the action and reserve no overlay or attention-grabbing toast. */
+.wait-feedback{display:flex;align-items:flex-start;gap:9px;color:var(--app-muted);font:12px/1.6 system-ui;text-align:left;overflow-wrap:anywhere}
+.wait-feedback[hidden]{display:none!important}
+.wait-feedback-mark{flex:none;width:13px;height:13px;margin-top:3px;border:1.5px solid #e4c48635;border-top-color:var(--app-gold);border-radius:50%;animation:update-spin 1.3s linear infinite}
+.wait-feedback small{display:block;margin-top:4px;color:var(--app-muted);font-size:11px;line-height:1.6}
+.desktop-activity{margin:14px 0 0}.desktop-auth-wait.wait-feedback{padding:4px 0;margin:0 0 18px}
+.desktop-company-dialog .company-wait{margin:12px 0;font-size:12px}.desktop-company-dialog .company-wait small{font-size:11px}
+#desktop-signin:has(.desktop-device:not([hidden])) .desktop-auth-wait{margin:0 0 18px;font-size:11px}
+/* The sign-in dialog is centred, so its wait line is centred too. The shared
+   .wait-feedback component is left-aligned for the hero, where it sits under a
+   left-aligned action; here that left the spinner and its sentence 108px left of
+   the dialog's centre line, reading as a stray block rather than as the status of
+   the step above it. */
+#desktop-signin .desktop-auth-wait{justify-content:center;text-align:center;text-wrap:balance}
+#desktop-signin.is-finishing{padding-top:34px;padding-bottom:28px}
+@media(prefers-reduced-motion:reduce){.wait-feedback-mark{animation:none;border-color:var(--app-gold);opacity:.7}}
+
+/* ---- Entry motion: one quiet movement per surface -------------------------------
+   Sol's rule for this launcher is that a wait reports itself at once and quietly; the
+   surfaces obey the same rule. A dialog arrives, a refusal lands in the slot the player is
+   already reading, and a status line opens under the control they pressed - each with one
+   short movement in the direction of its own content, then still. Nothing loops, nothing
+   bounces, nothing slides across the screen, and nothing moves at all when the system asks
+   for reduced motion: that is a preference, not a hint.
+
+   Only entrances are animated. Closes stay instant, because a dialog that lingers after
+   Escape is worse than one that disappears, and because every journey in tests/desktop
+   expects a closed dialog to be closed the moment it is closed. */
+/* The dialog fades; it does not slide or scale. These dialogs measure their own geometry to
+   decide where a refusal has to be scrolled to, and a transform in flight moves the box those
+   measurements read - at 800x600 that left the identity-conflict sentence a few pixels outside
+   the box the product had just scrolled it into. Motion that breaks a measurement is not
+   polish (tests/desktop/launcher-identity-conflict.electron.mjs). */
+@keyframes dialog-enter{from{opacity:0}to{opacity:1}}
+@keyframes backdrop-enter{from{opacity:0}to{opacity:1}}
+/* A refusal or a status line arrives where the player is already looking, so it fades in
+   rather than moving: a transform here would shift the box the dialogs measure to decide
+   whether the sentence is reachable, and a refusal that scrolls itself is worse than one
+   that simply appears (tests/desktop/launcher-identity-conflict.electron.mjs). */
+@keyframes line-enter{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:no-preference){
+ .desktop-company-dialog[open]{animation:dialog-enter 170ms cubic-bezier(.22,.61,.36,1) both}
+ .desktop-company-dialog[open]::backdrop{animation:backdrop-enter 170ms ease-out both}
+ /* Step 1 and step 2 of setup hand over rather than cut: the second dialog enters the same
+    way the first did, so the flow reads as one movement with the step line above it. */
+ .desktop-company-dialog .company-step{animation:line-enter 200ms ease-out both}
+ .wait-feedback:not([hidden]){animation:line-enter 160ms ease-out both}
+ .desktop-company-dialog .company-error:not([hidden]){animation:line-enter 160ms ease-out both}
+}
+
+/* Launcher home: one aligned row; supporting cards pair below the client on compact screens. */
+.desktop-mode body.home{height:auto;min-height:100dvh;overflow-y:auto}
+.desktop-mode body.home>.home-content{padding:calc(32px + var(--launcher-notice-space,0px)) 40px 72px}
+.desktop-mode .home .home-hero{width:min(1180px,100%);margin:auto;display:grid;grid-template-columns:minmax(320px,1.15fr) minmax(0,1.5fr);gap:20px;align-items:stretch}
+.desktop-mode .home-hero>.hero-copy{max-height:none;overflow:visible;min-height:360px;padding:28px;align-self:stretch;box-shadow:0 12px 40px #0003}
+.launcher-discovery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;min-width:0;align-items:stretch}
+.discovery-card{display:flex;flex-direction:column;min-width:0;padding:28px 24px;background:#11252df2;border:1px solid var(--app-border);border-radius:14px;box-shadow:0 12px 40px #0003;text-align:left}
+.discovery-label{font:600 10px/1.5 system-ui;letter-spacing:.12em;text-transform:uppercase;color:var(--app-gold);margin:0 0 26px}
+.discovery-title{font:500 23px/1.25 Georgia,serif;color:#eee4cf;margin:0 0 14px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.discovery-copy{font:12px/1.75 system-ui;color:var(--app-muted);margin:0 0 24px;white-space:pre-line;overflow-wrap:anywhere}
+.discovery-card>.discovery-copy{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.discovery-date,.discovery-category{font:11px/1.5 system-ui;color:var(--app-muted);margin-bottom:12px}
+.discovery-action{display:inline-flex;align-items:center;align-self:flex-start;min-height:40px;padding:12px 0 0;margin-top:auto;color:var(--app-gold);font:600 12px/1.4 system-ui;text-decoration:none;border-top:1px solid var(--app-border);width:100%;text-align:left;cursor:pointer}
+.discovery-action:hover{color:#fff0c6}
+.discovery-dialog{width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto;padding:32px;background:var(--app-panel);color:var(--ink);border:1px solid var(--app-border);border-radius:14px}
+.discovery-dialog::backdrop{background:#06141dcc;backdrop-filter:blur(5px)}
+@media(max-width:1000px){
+ .desktop-mode .home .home-hero{grid-template-columns:minmax(0,1fr);max-width:680px}
+ .desktop-mode .home-hero>.hero-copy{min-height:0}
+ .discovery-card{min-height:260px}
+}
+@media(max-width:600px){
+ .desktop-mode body.home>.home-content{padding:calc(24px + var(--launcher-notice-space,0px)) 20px 100px}
+ .desktop-mode .home-hero>.hero-copy,.discovery-card{padding:24px 20px}
+ .launcher-discovery,.desktop-mode .home .home-hero{gap:16px}
+ .discovery-title{font-size:21px}
+}
+@media(max-width:440px){.launcher-discovery{grid-template-columns:1fr}.discovery-card{min-height:230px}}
+
+/* Home is the launcher's shell, not a page: it has to fit every window the window itself
+   allows, and `desktop/main.cjs` pins that window at `minWidth` 800 and `minHeight` 600
+   (doc/launcher-states.md, *The launcher is an application window, not the website*).
+   The two-row form above 1000px wide does not fit a short window, and below 1000px it is
+   stacked: measured 2026-10-22 on 1.0.39, 800x600 needed 890px of document height, so both
+   cards' only actions (Read post at 703..743, Explore item at the same offset) and the whole
+   footer (844..890) sat below the fold — the smallest window the launcher allows cut the
+   review's own cards in half. So the supporting cards pair *beside* the client on a short
+   window, exactly as they already do above 1000px, with the tighter rhythm a short window
+   affords. Nothing is dropped or shrunk to buy the room: both cards keep their label, date,
+   title, copy and action, every control keeps its touch target, and the counts the review
+   asserts are unchanged. The trim below applies at every height a narrow window has before the
+   stacked form fits with its designed rhythm, so the trimmed form's own need (748px measured)
+   is what decides whether a window has room for two rows; at 800px wide the stacked form is
+   used from 760px of window height up, and its 12px of slack is what keeps the switch from
+   being a knife edge. Above 960px of height the stacked form fits untrimmed (908px measured),
+   so the trim stops there and a tall narrow window keeps the spacing it always had. */
+@media(min-width:701px) and (max-width:1000px) and (max-height:960px){
+ .desktop-mode .home-hero>.hero-copy{padding:20px}
+ .desktop-home-heading{margin-bottom:16px}
+ .desktop-install-details{margin-top:14px;padding-top:12px}
+ .desktop-mode body.home>.home-content{padding:calc(16px + var(--launcher-notice-space,0px)) 40px 24px}
+ .discovery-card{min-height:0;padding:20px 18px}
+ .discovery-label{margin-bottom:10px}
+ .discovery-date,.discovery-category{margin-bottom:6px}
+ .discovery-title{margin-bottom:8px}
+ .discovery-copy{margin-bottom:10px}
+}
+@media(min-width:701px) and (max-width:1000px) and (max-height:760px){
+ .desktop-mode .home .home-hero{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);max-width:1000px;gap:16px}
+ .desktop-mode .home-hero>.hero-copy{min-height:0}
+ .launcher-discovery{gap:16px}
+ /* A headline has less width beside the client than below it, so it gets a fourth line here
+    rather than being ellipsised where the stacked form showed it whole: "The server row, the
+    cold start and the legal pages" is 48 characters and needs four lines of a 142px card. */
+ .discovery-title{-webkit-line-clamp:4}
+}
+/* The room the fixed failure notice reserves comes out of the same height, so a short window
+   closes up its own padding rather than pushing the footer under the edge. This repeats the
+   `@media(max-height:700px)` block near the top of this file because the rule that follows it
+   would otherwise win, and it is what lets a wide window keep the notice and its footer on
+   screen at the shortest height the launcher allows. */
+@media(min-width:601px) and (max-height:700px){
+ .desktop-mode body.home>.home-content{padding:calc(16px + var(--launcher-notice-space,0px)) 40px 24px}
+}
+/* THE STORE IS OFFERED ONLY TO A PLAYER WITH AN EASTER COMPANY SESSION. Owen, 2026-10-29, the day
+   after he asked for the storefront back on the site: *"hide the store from non-signed-in users."*
+   Every page carries its Store entry in static markup (the map and the wiki moved under
+   /minecraft/, so the entry sits at a different depth on every page), and a visitor may arrive with
+   no scripting at all - so the rule is a CSS DEFAULT rather than a script that removes things:
+   hidden unless something has PROVEN a session. Only site/store-access.mjs may put
+   `store-signed-in` on <html>, and it does so from the account seam's state, never from anything a
+   page guesses. A document that cannot check a session therefore cannot claim one.
+   `desktop-mode` is the launcher, which is out of this rule's scope: the app mounts the store with
+   its own transport and offers its own entry, so it shows one either way. The launcher's entry is
+   `a.desktop-store-entry` (appended by site/desktop.js on a page that lacks one) or, since the
+   pages carry their own, the static `a.store-entry` - both are listed here so neither can be the
+   one a later edit forgets. */
+.site-header nav a.store-entry,
+.site-header nav a.desktop-store-entry{display:none}
+.store-signed-in .site-header nav a.store-entry{display:inline}
+.desktop-mode .site-header nav a.store-entry,
+.desktop-mode .site-header nav a.desktop-store-entry{display:inline}
+.store-main{display:block}
+.desktop-mode .store-main{display:block}
+.desktop-mode .store-footer>span:last-child{display:inline}

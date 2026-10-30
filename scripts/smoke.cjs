@@ -1,18 +1,23 @@
 // Exercise the actual packaged executable through Chromium's loopback-only CDP.
+// E_SERVER_CLIENT_SKIP_UPDATE_CHECK=1 keeps the artifact still: a startup update check that found
+// a newer release would restart the app and replace the first screen this file measures.
 // This is a disposable CI profile, never a person's existing app data or browser.
 'use strict';
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),net=require('node:net'),{spawn}=require('node:child_process'),assert=require('node:assert/strict');
 (async()=>{
  const executable=path.resolve(process.argv[2]),home=await fs.mkdtemp(path.join(os.tmpdir(),'eserver-smoke-'));
  const port=await new Promise(resolve=>{const server=net.createServer();server.listen(0,'127.0.0.1',()=>{const port=server.address().port;server.close(()=>resolve(port));});});
- const child=spawn(executable,['--no-sandbox','--remote-debugging-address=127.0.0.1','--remote-debugging-port='+port],{env:{...process.env,HOME:home,XDG_CONFIG_HOME:path.join(home,'config'),XDG_CACHE_HOME:path.join(home,'cache'),APPDATA:path.join(home,'AppData/Roaming'),LOCALAPPDATA:path.join(home,'AppData/Local')},stdio:['ignore','pipe','pipe']});
+ const child=spawn(executable,['--no-sandbox','--remote-debugging-address=127.0.0.1','--remote-debugging-port='+port],{env:{...process.env,HOME:home,E_SERVER_CLIENT_SKIP_UPDATE_CHECK:'1',XDG_CONFIG_HOME:path.join(home,'config'),XDG_CACHE_HOME:path.join(home,'cache'),APPDATA:path.join(home,'AppData/Roaming'),LOCALAPPDATA:path.join(home,'AppData/Local')},stdio:['ignore','pipe','pipe']});
  let log='';child.stdout.on('data',data=>log=(log+data).slice(-16000));child.stderr.on('data',data=>log=(log+data).slice(-16000));
  let socket;
  try{
   let target;
   for(let i=0;i<240;i++){
    if(child.exitCode!==null)throw Error('Packaged client exited: '+log);
-   try{const targets=await(await fetch('http://127.0.0.1:'+port+'/json/list')).json();target=targets.find(t=>t.type==='page'&&t.url.includes('shell.html'));if(target)break;}catch{}
+   // THE FIRST SCREEN IS THE SITE'S SIGN-IN PAGE (desktop/signin.cjs): the packaged app opens the
+   // Easter Company account page on the client's own scheme, at the one pathname that page's
+   // module accepts, before anything else exists.
+   try{const targets=await(await fetch('http://127.0.0.1:'+port+'/json/list')).json();target=targets.find(t=>t.type==='page'&&t.url.startsWith('e-server-signin://company/account/'));if(target)break;}catch{}
    await new Promise(resolve=>setTimeout(resolve,250));
   }
   assert.ok(target,'Packaged first screen did not open: '+log);
@@ -22,11 +27,19 @@ const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:
   const rpc=(method,params={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});socket.send(JSON.stringify({id,method,params}));});
   let result;
   for(let i=0;i<60;i++){
-   result=await rpc('Runtime.evaluate',{expression:'({title:document.title,heading:document.querySelector("h1")?.textContent,connect:!!document.querySelector("#connect")&&!document.querySelector("#connect").hidden,signin:!!document.querySelector("input[name=identifier]"),bridge:!!window.eServerSetup,node:typeof require,process:typeof process})',returnByValue:true});
+   result=await rpc('Runtime.evaluate',{expression:'({url:location.href,title:document.title,overline:document.querySelector(".account-overline")?.textContent,heading:document.querySelector(".account-heading")?.textContent,options:[...document.querySelectorAll(".company-signin > button")].map(b=>b.textContent),signin:!!document.querySelector("input[name=identifier]"),bridge:!!window.eServerSetup,node:typeof require,process:typeof process})',returnByValue:true});
    if(result.result?.value?.bridge&&result.result.value.signin)break;
    await new Promise(resolve=>setTimeout(resolve,250));
   }
-  const view=result.result.value;assert.equal(view.title,'e-server');assert.equal(view.connect,false);assert.equal(view.signin,true);assert.equal(view.bridge,true);assert.equal(view.node,'undefined');assert.equal(view.process,'undefined');
+  // The page is the site's, at the site's address, with the site's own framing and option order,
+  // and it is a renderer: no Node, no process, and the setup bridge present.
+  const view=result.result.value;
+  assert.equal(view.url,'e-server-signin://company/account/');
+  assert.equal(view.title,'Easter Company account');
+  assert.equal(view.overline,'EASTER COMPANY');
+  assert.equal(view.heading,'Easter Company account');
+  assert.deepEqual(view.options,['Sign in with Microsoft','Sign in with Google','Sign in with Steam','Sign in with Discord']);
+  assert.equal(view.signin,true);assert.equal(view.bridge,true);assert.equal(view.node,'undefined');assert.equal(view.process,'undefined');
   const screenshot=await rpc('Page.captureScreenshot',{format:'png'});await fs.mkdir('release',{recursive:true});await fs.writeFile('release/packaged-first-screen-'+process.platform+'.png',Buffer.from(screenshot.data,'base64'));
   console.log('Packaged e-server first screen verified:',JSON.stringify(view));
   await rpc('Browser.close').catch(()=>{});

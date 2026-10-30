@@ -1,0 +1,148 @@
+/* THE E-SERVER SKIN FOR THE SITE'S ACCOUNT PAGE. Served as /web.css.
+   ---------------------------------------------------------------------------------------------
+   The page is easter-co-smp.github.io/site/account/, vendored byte for byte under
+   desktop/vendor/site/ and served unchanged by desktop/signin.cjs. Its own head loads four
+   stylesheets in this order: ../styles.css, ../desktop.css, account.css, ../web.css. web.css is
+   the site's web-mode overlay slot and it is the last sheet in the cascade, which makes it the
+   one place a re-skin belongs: this file answers that slot, and every rule below either replaces
+   a COLOUR, a FONT FAMILY or a background the site's sheets set. Not one box changes.
+
+   That is the whole licence this file has, and it is deliberate: the site's panel is 520px wide,
+   30/28/32px of padding, a 16px radius, a 46px floor on every control with a 10px gap between
+   them, 13px control type and a 34px heading. Every one of those numbers is still the site's,
+   because Owen asked for the site's layout with e-server's colours, not for a second design of
+   the same card (scripts/verify-company-signin.cjs measures the client's panel and the site's
+   panel side by side and requires them to agree on every box).
+
+   THE PALETTE is e-server's own, not an approximation of it: the tokens are api/page_utils.py's
+   and /root/e-app/configs/static/system.css's --bg/--card/--border/--text/--muted/--purple, and
+   they are the same ones desktop/shell.css already uses for the client's other screens. The
+   accent control follows the app's own convention (system.css .btn-download: solid --purple,
+   white label) rather than the site's gold gradient; everything else is the site's shape in
+   e-server colours. The typography is system-ui, which is what every e-server surface uses. */
+
+.account {
+  /* e-server's tokens, named once here and used below rather than repeated as literals. */
+  --es-bg: #0d1117;
+  --es-card: #161b22;
+  --es-card-raised: #1c2128;
+  --es-border: #21262d;
+  --es-border-strong: #30363d;
+  --es-text: #c9d1d9;
+  --es-heading: #ffffff;
+  --es-muted: #8b949e;
+  --es-purple: #8b5cf6;
+  --es-purple-hover: #7c3aed;
+  --es-red: #f85149;
+  /* The site's own account tokens, re-pointed at e-server's. account.css reads these for the
+     panel, the ink, the muted prose and the accent role. */
+  --account-ink: var(--es-text);
+  --account-muted: var(--es-muted);
+  --account-gold: var(--es-purple);
+  --account-line: var(--es-border);
+  --account-panel: var(--es-card);
+  /* The shared wait ring (site/desktop.css .wait-feedback-mark) paints itself in --app-gold, and
+     the page's busy state is that ring plus one sentence. It turns purple here. */
+  --app-gold: var(--es-purple);
+  /* The site's page sits on a radial teal wash over its own ground colour. The wash stays, the
+     colours become e-server's: the purple at the top right over the app's #0d1117. */
+  background: radial-gradient(ellipse at 85% 0, #8b5cf624, transparent 50%), var(--es-bg);
+  color: var(--es-text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* THE HEADER: the same box the site draws, with this client's wordmark beside the same fire
+   phoenix. The mark is the site's own assets/ec-logo.svg (vendored byte for byte) at the site's
+   26px, and the wordmark is e-server's: purple and system-ui, which is how e-server writes its
+   own name in its top bar (.topbar .logo in system.css). desktop/signin-adapter.mjs writes that
+   word and removes the site's navigation, which has no meaning inside a desktop client. */
+.account .site-header {
+  border-bottom: 1px solid var(--es-border);
+}
+.account .site-wordmark {
+  font: 700 20px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: -0.01em;
+  color: var(--es-purple);
+}
+.account .site-wordmark .wordmark-mark {
+  filter: none;
+}
+
+/* THE PANEL. The site's gradient card over its panel colour; here the same gradient shape over
+   e-server's raised surface, with the app's own shadow depth. Radius, padding and width are
+   untouched. */
+.account .account-panel {
+  background: linear-gradient(160deg, #1c2128d9, #161b22f2), var(--es-card);
+  box-shadow: 0 24px 70px #00000099;
+}
+
+/* THE FRAMING, in e-server's type. The overline keeps the site's 8px/0.2em letter-spacing and
+   takes the purple; the heading keeps the site's size and line height and becomes the app's
+   heading face (system-ui, 600, white) the way desktop/shell.css writes its own h1. */
+.account .account-overline {
+  color: var(--es-purple);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.account .account-heading {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 600;
+  color: var(--es-heading);
+}
+
+/* THE SIGN-IN OPTIONS (site/signin-options.mjs, drawn by account.mjs). One full-width row per
+   option, 46px floor, 10px gaps: all the site's. Microsoft is the primary control and takes
+   e-server's accent, exactly as the app's own primary buttons do. The broker providers and the
+   form's submit are the app's quiet control: card surface, strong border, purple on hover. */
+.account .company-microsoft {
+  border-color: var(--es-purple);
+  background: var(--es-purple);
+  color: #ffffff;
+}
+.account .company-microsoft:hover {
+  background: var(--es-purple-hover);
+}
+.account .company-provider,
+.account .company-submit {
+  border-color: var(--es-border-strong);
+  background: var(--es-card);
+  color: var(--es-text);
+}
+.account .company-provider:hover,
+.account .company-submit:hover {
+  border-color: var(--es-purple);
+  background: var(--es-card-raised);
+  color: var(--es-heading);
+}
+.account .company-microsoft:focus-visible,
+.account .company-provider:focus-visible,
+.account .company-submit:focus-visible,
+.account .company-signin input:focus-visible,
+.account .account-skip:focus {
+  outline: 2px solid var(--es-purple);
+  outline-offset: 3px;
+}
+.account .company-signin label {
+  color: var(--es-text);
+}
+.account .company-signin input:not([type=checkbox]) {
+  border-color: var(--es-border-strong);
+  background: var(--es-bg);
+  color: var(--es-text);
+}
+
+/* THE PAGE'S ONE ALERT REGION, in e-server's red (system.css --red). The type, the line height
+   and the box are the site's. */
+.account .account-error {
+  border-color: #f8514955;
+  background: #f8514914;
+  color: #ff7b72;
+}
+.account .account-skip {
+  border-color: var(--es-purple);
+  background: var(--es-card);
+  color: var(--es-text);
+}
+/* The footer keeps the site's words and its motto's serif italic; only its ink is re-pointed. */
+.account .account-footer {
+  color: var(--es-muted);
+}

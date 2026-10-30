@@ -27,9 +27,20 @@ jobs:
         run: npm run dist:linux
       - if: runner.os == 'Windows'
         run: npm run dist:windows
+      - name: Check out the site, so the vendored sign-in can be compared byte for byte
+        if: runner.os == 'Linux'
+        uses: actions/checkout@v6
+        with:
+          repository: EasterCompany/easter-co-smp.github.io
+          path: site-checkout
       - name: Exercise the packaged first screen on Linux
         if: runner.os == 'Linux'
         run: xvfb-run -a node scripts/smoke.cjs ./release/linux-unpacked/e-server-client
+      - name: Measure the packaged sign-in against the site's own page
+        if: runner.os == 'Linux'
+        env:
+          EASTER_SITE_DIR: ${{ github.workspace }}/site-checkout/site
+        run: xvfb-run -a node scripts/verify-company-signin.cjs ./release/linux-unpacked/e-server-client
       - name: Exercise the packaged first screen on Windows
         if: runner.os == 'Windows'
         run: node scripts/smoke.cjs ./release/win-unpacked/e-server.exe

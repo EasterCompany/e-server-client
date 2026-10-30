@@ -7,7 +7,21 @@ access, its PIN and your Easter Company account are still required. No server
 address, PIN, Company token or backend source is bundled into releases.
 
 `npm ci`, `npm test`, `npm start`. `npm run dist:linux` builds AppImage, DEB and
-pacman; `npm run dist:windows` builds an NSIS installer on Windows. The release
+pacman; `npm run dist:windows` builds an NSIS installer on Windows.
+
+The Easter Company sign-in is Easter Co. SMP's own account page, copied byte for byte
+into `desktop/vendor/site/` and served on a private scheme by `desktop/signin.cjs`: the
+site's layout and sentences, re-skinned with e-server's palette, mark and wordmark by
+`desktop/signin.css`, with every client difference in `desktop/signin-adapter.mjs`
+(`desktop/vendor/site/README.md`, `docs/COMPANY_LOGIN.md`). After `npm run pack`,
+
+  xvfb-run -a node scripts/smoke.cjs ./release/linux-unpacked/e-server-client
+  xvfb-run -a node scripts/verify-company-signin.cjs ./release/linux-unpacked/e-server-client
+
+reads the packaged first screen and measures the packaged sign-in against the site's
+own page (set `EASTER_SITE_DIR` to point at a site checkout). Both launch the built
+artifact with a disposable HOME and `E_SERVER_CLIENT_SKIP_UPDATE_CHECK=1`, which keeps
+an update from restarting the app under the measurement; it can only ever skip a check. The release
 workflow builds both operating systems and refuses to publish without every
 installer, both verified ASAR update payloads and SHA256SUMS. Windows binaries are
 unsigned; the download instructions explain SmartScreen accurately.

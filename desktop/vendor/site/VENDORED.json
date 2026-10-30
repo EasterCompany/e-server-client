@@ -1,0 +1,62 @@
+{
+  "_comment": "The client's Easter Company sign-in is the site's own sign-in, copied byte for byte. Every entry below is a file served to the page by desktop/signin.cjs; tests/company-signin.test.cjs checks each sha256 against the copy in this tree on every run, and cmp's each one against the site's own file whenever a site checkout is available (EASTER_SITE_DIR, or /root/easter-co-smp.github.io/site). Nothing in this list is edited by this client: the seam, the skin and the two DOM adjustments live in desktop/signin-adapter.mjs, desktop/signin.css and desktop/signin.cjs.",
+  "source": "/root/easter-co-smp.github.io/site",
+  "source_revision": "5fd2c7c35ab35272af6dd3f3177ac11e2e59647b",
+  "source_revision_date": "2026-10-29",
+  "files": {
+    "desktop/vendor/site/account/index.html": {
+      "source": "account/index.html",
+      "sha256": "8dbb0848a26fc0b0985ae759472f0c460ca9e4174d65248c83947fdf90ac5e22"
+    },
+    "desktop/vendor/site/account/account.mjs": {
+      "source": "account/account.mjs",
+      "sha256": "9796a67cda91a9a9de3ef8301f1eb3d1acf6e4b2318ffd97b5a7947824a1de14"
+    },
+    "desktop/vendor/site/account/account.css": {
+      "source": "account/account.css",
+      "sha256": "1177a665ce0d90d9693407b2b817cf76434c1dd60e0104f5640fde0b18880ac2"
+    },
+    "desktop/vendor/site/account/microsoft-signin.mjs": {
+      "source": "account/microsoft-signin.mjs",
+      "sha256": "90cd0592d04540d3d43c83cd7514aa5f64a087251ac7d20866800025d957f02f"
+    },
+    "desktop/vendor/site/auth-return.mjs": {
+      "source": "auth-return.mjs",
+      "sha256": "5051224eca420a4262d0d96ea5f74fe0a83a202f322c718b007dac95b73582b9"
+    },
+    "desktop/vendor/site/styles.css": {
+      "source": "styles.css",
+      "sha256": "590b29e1d4a307eba79ebe463d60cf7c9ffd98f828a6fdd6fb790802e6bb1cfd"
+    },
+    "desktop/vendor/site/desktop.css": {
+      "source": "desktop.css",
+      "sha256": "4c91ee54dd24300a475f60ee61499f3a60c28ddd27c8ad0d9b159ca232ef1db7"
+    },
+    "desktop/vendor/site/assets/ec-logo.svg": {
+      "source": "assets/ec-logo.svg",
+      "sha256": "da1a397b7576bd2e17d3b5ce112c601cdf2112aafb8d1d63743deb50de77bb2c"
+    },
+    "desktop/vendor/site/assets/favicon.ico": {
+      "source": "assets/favicon.ico",
+      "sha256": "cdf21d87fad8447659adc72e1c756a220bb44ee4c7e49649a615e478f9a65d44"
+    },
+    "desktop/vendor/site/assets/favicon.png": {
+      "source": "assets/favicon.png",
+      "sha256": "a4f1bb290a4f81acf276c1b8975d21c6cb55f315d1d2d2a510351c638b840905"
+    },
+    "desktop/vendor/site/assets/apple-touch-icon.png": {
+      "source": "assets/apple-touch-icon.png",
+      "sha256": "36c43d8a77adf1b56acccd055f94cf749cca857ad1629773cf8d0b15876f5928"
+    },
+    "desktop/vendor/launcher/signin-options.mjs": {
+      "source": "signin-options.mjs",
+      "sha256": "7dbb00e072f9a6310d683d8a63eb470df12c36d5beb762ec3438bc31832cbecd",
+      "note": "The copy this client has carried since its first release, byte identical to the site's. It is served as /signin-options.mjs so the page's imports resolve, and the client keeps one copy of it rather than two."
+    },
+    "desktop/vendor/launcher/account-client.mjs": {
+      "source": "account-client.mjs",
+      "sha256": "569374f522a1ce857291ebf1f586d472abe86988319e091f0eb82512063907d2",
+      "note": "Imported by the site's account/microsoft-signin.mjs, which the page loads even though this client never starts that flow: the import has to resolve. Same reason as above for keeping the client's existing copy."
+    }
+  }
+}
